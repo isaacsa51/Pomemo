@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish (Spain / neutral). Mexico overrides only what differs, in values-es-rMX. -->
+<resources>
+    <!-- Ringing -->
+    <string name="snooze">Posponer</string>
+    <string name="dismiss">Descartar</string>
+    <string name="continue_to">Continuar con %1$s</string>
+    <string name="end_period">Terminar periodo</string>
+    <string name="channel_alarms">Alarmas</string>
+    <string name="channel_reminders">Recordatorios</string>
+    <string name="alarm_pane">Alarma sonando</string>
+
+    <!-- Navigation -->
+    <string name="tab_timer">Temporizador</string>
+    <string name="tab_reminders">Recordatorios</string>
+
+    <!-- Timer -->
+    <string name="timer_title">Pomodoro</string>
+    <string name="timer_settings">Ajustes del temporizador</string>
+    <string name="start">Iniciar</string>
+    <string name="pause">Pausar</string>
+    <string name="reset">Restablecer</string>
+    <string name="skip">Saltar a la siguiente fase</string>
+    <string name="phase_focus">Concentración</string>
+    <string name="phase_short_break">Descanso corto</string>
+    <string name="phase_long_break">Descanso largo</string>
+    <string name="phase_done">Terminó: %1$s</string>
+    <string name="up_next">Siguiente: %1$s · %2$d min</string>
+    <string name="timer_left_a11y">%1$s, quedan %2$d min %3$d s</string>
+    <plurals name="sessions_done_a11y">
+        <item quantity="one">%1$d de %2$d sesión de concentración completada</item>
+        <item quantity="many">%1$d de %2$d sesiones de concentración completadas</item>
+        <item quantity="other">%1$d de %2$d sesiones de concentración completadas</item>
+    </plurals>
+    <string name="sessions_before_long">Sesiones antes del descanso largo</string>
+    <string name="minutes_value">%1$d min</string>
+    <string name="decrease">Reducir %1$s</string>
+    <string name="increase">Aumentar %1$s</string>
+    <string name="timer_paused">En pausa · quedan %1$s</string>
+    <string name="resume">Reanudar</string>
+    <string name="channel_timer">Temporizador</string>
+
+    <!-- Reminders -->
+    <string name="reminders_title">Recordatorios</string>
+    <string name="reminders_active">Activos: %1$d</string>
+    <string name="new_reminder">Nuevo recordatorio</string>
+    <string name="edit_reminder">Editar recordatorio</string>
+    <string name="edit">Editar</string>
+    <string name="reminders_empty">Aún no hay recordatorios.\nPulsa + y escríbelo tal cual, p. ej.\n«regar las plantas lun mié vie 8pm».</string>
+    <string name="kind_alarm">Alarma a pantalla completa</string>
+    <string name="kind_notification">Notificación</string>
+    <string name="permissions_title">Pomemo necesita algunos permisos para sonar a tiempo</string>
+    <string name="allow_notifications">Permitir notificaciones</string>
+    <string name="allow_full_screen">Permitir alarmas a pantalla completa</string>
+    <string name="allow_exact">Permitir alarmas exactas</string>
+
+    <!-- Composer. The parser understands Spanish and English, whatever the phone language. -->
+    <string name="composer_label">¿Qué y cuándo?</string>
+    <string name="composer_placeholder">p. ej. estirarme entre semana a las 10:30</string>
+    <string name="examples">Ejemplos</string>
+    <string name="time">Hora</string>
+    <string name="date">Fecha</string>
+    <string name="pick_time">Elegir hora</string>
+    <string name="repeat_on">Repetir los</string>
+    <string name="ring_as">Avisar con</string>
+    <string name="note_label">Nota (opcional)</string>
+    <string name="add_time_to_save">Añade una hora para guardar</string>
+    <string name="summary">%1$s · %2$s a las %3$s</string>
+    <string name="default_title">Recordatorio</string>
+    <string name="save">Guardar</string>
+    <string name="delete">Eliminar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="ok">Aceptar</string>
+    <string name="delete_title">¿Eliminar recordatorio?</string>
+    <string name="delete_text">«%1$s» dejará de sonar y se eliminará.</string>
+    <string name="select_time">Seleccionar hora</string>
+    <string name="use_keyboard">Escribir la hora</string>
+    <string name="use_dial">Elegir en el reloj</string>
+
+    <!-- Resumen del horario -->
+    <string name="schedule_every_day">Todos los días</string>
+    <string name="schedule_weekdays">Entre semana</string>
+    <string name="schedule_weekends">Fines de semana</string>
+    <string name="schedule_today">Hoy</string>
+    <string name="schedule_tomorrow">Mañana</string>
+    <string-array name="composer_examples">
+        <item>Estirarme entre semana a las 10:30</item>
+        <item>Regar las plantas lun mié vie 8pm</item>
+        <item>Llamar a mamá mañana a las 6 de la tarde</item>
+        <item>Levantarme en 20 minutos</item>
+    </string-array>
+
+    <!-- Notas -->
+    <string name="tab_notes">Notas</string>
+    <string name="notes_title">Notas</string>
+    <string name="new_note">Nueva nota</string>
+    <string name="notes_empty">Aún no hay notas.\nPulsa + para escribir una. Funciona markdown:\n**negrita**, _cursiva_, # títulos, - listas.</string>
+    <string name="note_placeholder">Escribe en markdown…</string>
+    <string name="close">Cerrar</string>
+    <string name="delete_note_title">¿Eliminar nota?</string>
+    <string name="delete_note_text">La nota se eliminará.</string>
+    <string name="format_bold">Negrita</string>
+    <string name="format_italic">Cursiva</string>
+    <string name="format_strike">Tachado</string>
+    <string name="format_code">Código</string>
+    <string name="format_heading">Título</string>
+    <string name="format_quote">Cita</string>
+    <string name="format_bullet">Lista con viñetas</string>
+    <string name="format_numbered">Lista numerada</string>
+    <string name="format_checklist">Lista de tareas</string>
+    <string name="preview">Vista previa</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mexican Spanish: only what differs from values-es; everything else falls back to it. -->
+<resources>
+    <string name="timer_settings">Configuración del temporizador</string>
+    <string name="reset">Reiniciar</string>
+    <string name="reminders_empty">Aún no hay recordatorios.\nToca + y escríbelo tal cual, p. ej.\n“regar las plantas lun mié vie 8pm”.</string>
+    <string name="add_time_to_save">Agrega una hora para guardar</string>
+    <string name="delete_text">“%1$s” dejará de sonar y se eliminará.</string>
+    <string name="notes_empty">Aún no hay notas.\nToca + para escribir una. Funciona markdown:\n**negrita**, _cursiva_, # títulos, - listas.</string>
+</resources>

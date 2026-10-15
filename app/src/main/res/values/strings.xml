@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name" translatable="false">Pomemo</string>
+
+    <!-- Ringing -->
+    <string name="snooze">Snooze</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="continue_to">Continue to %1$s</string>
+    <string name="end_period">End period</string>
+    <string name="channel_alarms">Alarms</string>
+    <string name="channel_reminders">Reminders</string>
+    <string name="alarm_pane">Alarm ringing</string>
+
+    <!-- Navigation -->
+    <string name="tab_timer">Timer</string>
+    <string name="tab_reminders">Reminders</string>
+
+    <!-- Timer -->
+    <string name="timer_title">Pomodoro</string>
+    <string name="timer_settings">Timer settings</string>
+    <string name="start">Start</string>
+    <string name="pause">Pause</string>
+    <string name="reset">Reset</string>
+    <string name="skip">Skip to next phase</string>
+    <string name="phase_focus">Focus</string>
+    <string name="phase_short_break">Short break</string>
+    <string name="phase_long_break">Long break</string>
+    <string name="phase_done">%1$s done</string>
+    <string name="up_next">Up next: %1$s · %2$d min</string>
+    <string name="timer_left_a11y">%1$s, %2$d min %3$d sec left</string>
+    <plurals name="sessions_done_a11y">
+        <item quantity="one">%1$d of %2$d focus session done</item>
+        <item quantity="other">%1$d of %2$d focus sessions done</item>
+    </plurals>
+    <string name="sessions_before_long">Sessions before long break</string>
+    <string name="minutes_value">%1$d min</string>
+    <string name="decrease">Decrease %1$s</string>
+    <string name="increase">Increase %1$s</string>
+    <string name="timer_paused">Paused · %1$s left</string>
+    <string name="resume">Resume</string>
+    <string name="channel_timer">Timer</string>
+
+    <!-- Reminders -->
+    <string name="reminders_title">Reminders</string>
+    <string name="reminders_active">%1$d active</string>
+    <string name="new_reminder">New reminder</string>
+    <string name="edit_reminder">Edit reminder</string>
+    <string name="edit">Edit</string>
+    <string name="reminders_empty">No reminders yet.\nTap + and just type it, like\n“water plants mon wed fri 8pm”.</string>
+    <string name="kind_alarm">Full-screen alarm</string>
+    <string name="kind_notification">Notification</string>
+    <string name="permissions_title">Pomemo needs a few permissions to ring on time</string>
+    <string name="allow_notifications">Allow notifications</string>
+    <string name="allow_full_screen">Allow full-screen alarms</string>
+    <string name="allow_exact">Allow exact alarms</string>
+
+    <!-- Composer -->
+    <string name="composer_label">What and when?</string>
+    <string name="composer_placeholder">e.g. stretch every weekday at 10:30</string>
+    <string name="examples">Examples</string>
+    <string name="time">Time</string>
+    <string name="date">Date</string>
+    <string name="pick_time">Pick a time</string>
+    <string name="repeat_on">Repeat on</string>
+    <string name="ring_as">Ring as</string>
+    <string name="note_label">Note (optional)</string>
+    <string name="add_time_to_save">Add a time to save</string>
+    <string name="summary">%1$s · %2$s at %3$s</string>
+    <string name="default_title">Reminder</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="delete_title">Delete reminder?</string>
+    <string name="delete_text">“%1$s” will stop ringing and be removed.</string>
+    <string name="select_time">Select time</string>
+    <string name="use_keyboard">Type the time</string>
+    <string name="use_dial">Pick on the clock</string>
+
+    <!-- Schedule summary -->
+    <string name="schedule_every_day">Every day</string>
+    <string name="schedule_weekdays">Weekdays</string>
+    <string name="schedule_weekends">Weekends</string>
+    <string name="schedule_today">Today</string>
+    <string name="schedule_tomorrow">Tomorrow</string>
+    <!-- The parser understands English and Spanish whatever the phone language. -->
+    <string-array name="composer_examples">
+        <item>Stretch every weekday at 10:30</item>
+        <item>Water plants mon wed fri 8pm</item>
+        <item>Call mom tomorrow at 6</item>
+        <item>Stand up in 20 minutes</item>
+    </string-array>
+
+    <!-- Notes -->
+    <string name="tab_notes">Notes</string>
+    <string name="notes_title">Notes</string>
+    <string name="new_note">New note</string>
+    <string name="notes_empty">No notes yet.\nTap + to write one. Markdown works:\n**bold**, _italic_, # headings, - lists.</string>
+    <string name="note_placeholder">Write in markdown…</string>
+    <string name="close">Close</string>
+    <string name="delete_note_title">Delete note?</string>
+    <string name="delete_note_text">This note will be removed.</string>
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_strike">Strikethrough</string>
+    <string name="format_code">Code</string>
+    <string name="format_heading">Heading</string>
+    <string name="format_quote">Quote</string>
+    <string name="format_bullet">Bulleted list</string>
+    <string name="format_numbered">Numbered list</string>
+    <string name="format_checklist">Checklist</string>
+    <string name="preview">Preview</string>
+</resources>
