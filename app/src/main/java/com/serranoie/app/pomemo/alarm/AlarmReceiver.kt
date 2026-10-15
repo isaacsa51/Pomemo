@@ -27,7 +27,7 @@ class AlarmReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_FIRE -> if (id != null) fire(id, isSnooze = intent.data?.host == "snooze")
-                    ACTION_SNOOZE -> if (id != null) ringer.snooze(id)
+                    ACTION_SNOOZE -> if (id != null) ringer.snooze(id).join()
                     ACTION_DISMISS -> if (id != null) ringer.stop(id)
                     ACTION_TIMER_END -> timer.onPhaseEnd().join()
                     ACTION_TIMER_TICK -> timer.refresh().join()

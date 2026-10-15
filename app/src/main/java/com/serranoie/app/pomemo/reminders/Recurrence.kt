@@ -27,7 +27,7 @@ fun nextTrigger(reminder: Reminder, now: LocalDateTime): LocalDateTime? {
     }
     return (0L..7L).asSequence()
         .map { start.plusDays(it) }
-        .filter { reminder.days and it.dayOfWeek.bit() != 0 }
+        .filter { reminder.days and it.dayOfWeek.bit() != 0 && it != reminder.skipDate }
         .map { it.atTime(reminder.time) }
         .firstOrNull { it.isAfter(now) }
 }

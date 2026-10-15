@@ -16,7 +16,7 @@
 
     <!-- Timer -->
     <string name="timer_title">Pomodoro</string>
-    <string name="timer_settings">Timer settings</string>
+    <string name="timer_settings">Settings</string>
     <string name="start">Start</string>
     <string name="pause">Pause</string>
     <string name="reset">Reset</string>
@@ -109,4 +109,18 @@
     <string name="format_numbered">Numbered list</string>
     <string name="format_checklist">Checklist</string>
     <string name="preview">Preview</string>
+    <string name="missed">Missed: %1$s</string>
+    <string name="phase_started">%1$s started · %2$d min</string>
+    <string name="auto_start">Start next phase automatically</string>
+    <string name="auto_start_summary">Chime instead of the full-screen alarm</string>
+    <string name="snooze_length">Snooze length</string>
+    <string name="ring_length">Ring for</string>
+    <string name="skip_today">Skip today</string>
+    <string name="unskip_today">Ring today</string>
+    <string name="schedule_skipped">%1$s · skipped today</string>
+    <string name="attached_note">Note on the alarm</string>
+    <string name="attach_note">Attach note</string>
+    <string name="choose_note">Choose a note</string>
+    <string name="detach_note">Remove note</string>
+    <string name="no_notes">No notes yet. Create one in the Notes tab.</string>
 </resources>

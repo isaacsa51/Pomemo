@@ -1,5 +1,13 @@
 package com.serranoie.app.pomemo.reminders
 
+import java.time.LocalDateTime
+import java.time.LocalDate
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.platform.LocalView
 import com.serranoie.app.pomemo.ui.HapticUtil
 import androidx.compose.animation.animateColorAsState
@@ -65,7 +73,7 @@ private val CondensedFlex = googleSansFlex(width = 25f)
  * primaryContainer when on, thin on a neutral surface when off; the shape rounds further when on.
  */
 @Composable
-fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Boolean) -> Unit, onSkipToday: (Boolean) -> Unit = {}) {
     val cs = MaterialTheme.colorScheme
     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.Dp>()
     val container by animateColorAsState(
@@ -99,12 +107,25 @@ fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Bo
 
     val hourSize = 116.sp
 
+    // Long-press offers "Skip today" while a recurring reminder still has a ring left today, and the undo once skipped.
+    val today = LocalDate.now()
+    val skipped = r.skipDate == today
+    val canSkip = remember(r, today) {
+        r.enabled && r.days != 0 && (skipped || nextTrigger(r, LocalDateTime.now())?.toLocalDate() == today)
+    }
+    val skipLabel = stringResource(if (skipped) R.string.unskip_today else R.string.skip_today)
+    var menu by remember { mutableStateOf(false) }
+
     CompositionLocalProvider(LocalContentColor provides content) {
         Column(
             Modifier
                 .clip(RoundedCornerShape(corner))
                 .background(container)
-                .clickable(onClickLabel = stringResource(R.string.edit)) { HapticUtil.performUIHaptic(view); onClick() }
+                .combinedClickable(
+                    onClickLabel = stringResource(R.string.edit),
+                    onLongClickLabel = skipLabel.takeIf { canSkip },
+                    onLongClick = if (canSkip) ({ menu = true }) else null,
+                ) { HapticUtil.performUIHaptic(view); onClick() }
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -155,7 +176,7 @@ fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Bo
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                describeSchedule(r.days, r.date),
+                describeSchedule(r.days, r.date).let { if (skipped) stringResource(R.string.schedule_skipped, it) else it },
                 style = MaterialTheme.typography.labelMedium,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -181,6 +202,17 @@ fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Bo
                         onToggle(on)
                     },
                     Modifier.semantics { contentDescription = r.title },
+                )
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(skipLabel) },
+                    leadingIcon = { Icon(if (skipped) Icons.Rounded.Alarm else Icons.Rounded.EventBusy, contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        HapticUtil.performConfirmHaptic(view)
+                        onSkipToday(!skipped)
+                    },
                 )
             }
         }

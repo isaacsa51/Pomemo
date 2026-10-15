@@ -68,16 +68,19 @@ val timeFormat: DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyl
 fun RemindersScreen(vm: RemindersViewModel = hiltViewModel()) {
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val composer by vm.composer.collectAsStateWithLifecycle()
+    val notes by vm.notes.collectAsStateWithLifecycle()
     RemindersContent(
         reminders = reminders,
         onEdit = vm::edit,
         onToggle = { r, on -> vm.setEnabled(r, on) },
+        onSkipToday = { r, skip -> vm.skipToday(r, skip) },
         canUseFullScreen = vm::canUseFullScreen,
         canScheduleExact = vm::canScheduleExact,
     )
     composer?.let { c ->
         ReminderComposerSheet(
             composer = c,
+            notes = notes,
             onUpdate = vm::updateComposer,
             onSave = vm::save,
             onDelete = { vm.delete(c.editingId) },
@@ -93,6 +96,7 @@ fun RemindersContent(
     onToggle: (Reminder, Boolean) -> Unit,
     canUseFullScreen: () -> Boolean,
     canScheduleExact: () -> Boolean,
+    onSkipToday: (Reminder, Boolean) -> Unit = { _, _ -> },
 ) {
     val gridState = rememberLazyGridState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -129,7 +133,7 @@ fun RemindersContent(
                 }
             }
             items(reminders, key = { it.id }) { r ->
-                ReminderTile(r, is24h, onClick = { onEdit(r) }, onToggle = { onToggle(r, it) })
+                ReminderTile(r, is24h, onClick = { onEdit(r) }, onToggle = { onToggle(r, it) }, onSkipToday = { onSkipToday(r, it) })
             }
         }
     }

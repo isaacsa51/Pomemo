@@ -47,7 +47,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,6 +60,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serranoie.app.pomemo.R
+import com.serranoie.app.pomemo.alarm.AlarmSettings
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
 import com.serranoie.app.pomemo.ui.components.TooltipIconButton
 import com.serranoie.app.pomemo.ui.theme.PomemoTheme
 
@@ -69,7 +73,8 @@ fun TimerScreen(vm: TimerViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val remaining by vm.remainingMs.collectAsStateWithLifecycle()
-    TimerContent(state, settings, remaining, vm::toggle, vm::skip, vm::reset, vm::updateSettings)
+    val alarm by vm.alarmSettings.collectAsStateWithLifecycle()
+    TimerContent(state, settings, remaining, vm::toggle, vm::skip, vm::reset, vm::updateSettings, alarm, vm::updateAlarmSettings)
 }
 
 @Composable
@@ -81,6 +86,8 @@ fun TimerContent(
     onSkip: () -> Unit,
     onReset: () -> Unit,
     onSettingsChange: (TimerSettings) -> Unit,
+    alarm: AlarmSettings = AlarmSettings(),
+    onAlarmChange: (AlarmSettings) -> Unit = {},
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val total = settings.lengthMs(state.phase)
@@ -158,25 +165,54 @@ fun TimerContent(
 
     if (showSettings) {
         ModalBottomSheet(onDismissRequest = { showSettings = false }) {
-            TimerSettingsContent(settings, onSettingsChange)
+            TimerSettingsContent(settings, onSettingsChange, alarm, onAlarmChange)
         }
     }
 }
 
 @Composable
-fun TimerSettingsContent(settings: TimerSettings, onChange: (TimerSettings) -> Unit) {
-    Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+fun TimerSettingsContent(
+    settings: TimerSettings,
+    onChange: (TimerSettings) -> Unit,
+    alarm: AlarmSettings,
+    onAlarmChange: (AlarmSettings) -> Unit,
+) {
+    val view = LocalView.current
+    Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
         Text(
             stringResource(R.string.timer_settings),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
         )
+        SectionHeader(stringResource(R.string.timer_title))
         Stepper(stringResource(R.string.phase_focus), settings.focusMin, stringResource(R.string.minutes_value, settings.focusMin), 1..120) { onChange(settings.copy(focusMin = it)) }
         Stepper(stringResource(R.string.phase_short_break), settings.shortMin, stringResource(R.string.minutes_value, settings.shortMin), 1..60) { onChange(settings.copy(shortMin = it)) }
         Stepper(stringResource(R.string.phase_long_break), settings.longMin, stringResource(R.string.minutes_value, settings.longMin), 1..90) { onChange(settings.copy(longMin = it)) }
         Stepper(stringResource(R.string.sessions_before_long), settings.sessions, "${settings.sessions}", 1..12) { onChange(settings.copy(sessions = it)) }
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.auto_start)) },
+            supportingContent = { Text(stringResource(R.string.auto_start_summary)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            trailingContent = { Switch(checked = settings.autoStart, onCheckedChange = null) },
+            // The whole row is the switch: one target for touch and TalkBack.
+            modifier = Modifier.toggleable(settings.autoStart, role = Role.Switch) {
+                HapticUtil.performLightHaptic(view)
+                onChange(settings.copy(autoStart = it))
+            },
+        )
+        SectionHeader(stringResource(R.string.channel_alarms))
+        Stepper(stringResource(R.string.snooze_length), alarm.snoozeMin, stringResource(R.string.minutes_value, alarm.snoozeMin), 1..60) { onAlarmChange(alarm.copy(snoozeMin = it)) }
+        Stepper(stringResource(R.string.ring_length), alarm.ringMin, stringResource(R.string.minutes_value, alarm.ringMin), 1..30) { onAlarmChange(alarm.copy(ringMin = it)) }
     }
 }
+
+@Composable
+private fun SectionHeader(text: String) = Text(
+    text,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 4.dp).semantics { heading() },
+)
 
 @Composable
 private fun Stepper(label: String, value: Int, valueText: String, range: IntRange, onChange: (Int) -> Unit) {
@@ -213,5 +249,5 @@ private fun TimerBreakPausedPreview() = PomemoTheme {
 @PreviewLightDark
 @Composable
 private fun TimerSettingsPreview() = PomemoTheme {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) { TimerSettingsContent(TimerSettings(), {}) }
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) { TimerSettingsContent(TimerSettings(), {}, AlarmSettings(), {}) }
 }

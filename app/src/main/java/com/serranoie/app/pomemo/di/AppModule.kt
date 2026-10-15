@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.serranoie.app.pomemo.data.AppDatabase
 import com.serranoie.app.pomemo.data.MIGRATION_1_2
+import com.serranoie.app.pomemo.data.MIGRATION_2_3
 import com.serranoie.app.pomemo.data.NoteDao
 import com.serranoie.app.pomemo.data.ReminderDao
 import dagger.Module
@@ -19,7 +20,7 @@ object AppModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "pomemo.db").addMigrations(MIGRATION_1_2).build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "pomemo.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
 
     @Provides
     fun reminderDao(db: AppDatabase): ReminderDao = db.reminderDao()

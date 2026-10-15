@@ -24,6 +24,10 @@ data class Reminder(
     /** true = full-screen alarm, false = plain notification. */
     val ring: Boolean = true,
     val enabled: Boolean = true,
+    /** "Skip today": the one date this recurring reminder stays quiet. A past date does nothing. */
+    val skipDate: LocalDate? = null,
+    /** Note from the Notes tab shown (checklist and all) on the alarm screen. */
+    val noteId: Long? = null,
 )
 
 @Dao

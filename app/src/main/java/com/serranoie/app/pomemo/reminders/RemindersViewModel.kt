@@ -7,6 +7,7 @@ import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.alarm.AlarmScheduler
 import com.serranoie.app.pomemo.alarm.Ringer
 import com.serranoie.app.pomemo.data.Reminder
+import com.serranoie.app.pomemo.data.NoteDao
 import com.serranoie.app.pomemo.data.ReminderDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,6 +33,9 @@ data class Composer(
     val time: LocalTime? = null,
     val days: Int? = null,
     val date: LocalDate? = null,
+    val noteId: Long? = null,
+    /** Carried through edits so saving doesn't undo a "skip today". */
+    val skipDate: LocalDate? = null,
 ) {
     fun draft(): ReminderDraft {
         val parsed = ReminderParser.parse(text)
@@ -51,8 +55,10 @@ class RemindersViewModel @Inject constructor(
     private val dao: ReminderDao,
     private val scheduler: AlarmScheduler,
     private val ringer: Ringer,
+    noteDao: NoteDao,
 ) : ViewModel() {
     val reminders = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val notes = noteDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Null = composer sheet closed. */
     private val _composer = MutableStateFlow<Composer?>(null)
@@ -61,7 +67,7 @@ class RemindersViewModel @Inject constructor(
     fun newReminder(text: String = "") { _composer.value = Composer(text = text) }
 
     fun edit(r: Reminder) {
-        _composer.value = Composer(r.id, r.title, r.note, r.ring, r.time, r.days, r.date)
+        _composer.value = Composer(r.id, r.title, r.note, r.ring, r.time, r.days, r.date, r.noteId, r.skipDate)
     }
 
     fun closeComposer() { _composer.value = null }
@@ -81,6 +87,8 @@ class RemindersViewModel @Inject constructor(
             days = d.days,
             date = date,
             ring = c.ring,
+            skipDate = c.skipDate,
+            noteId = c.noteId,
         )
         _composer.value = null
         viewModelScope.launch {
@@ -92,6 +100,13 @@ class RemindersViewModel @Inject constructor(
 
     fun setEnabled(r: Reminder, enabled: Boolean) = viewModelScope.launch {
         val updated = r.copy(enabled = enabled, date = if (enabled && r.days == 0) upcomingDate(r.date, r.time) else r.date)
+        dao.update(updated)
+        scheduler.schedule(updated)
+    }
+
+    /** Quiet for today only; the reminder stays on and rings again on its next day. */
+    fun skipToday(r: Reminder, skip: Boolean) = viewModelScope.launch {
+        val updated = r.copy(skipDate = if (skip) LocalDate.now() else null)
         dao.update(updated)
         scheduler.schedule(updated)
     }

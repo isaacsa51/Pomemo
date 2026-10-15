@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -41,7 +42,14 @@ enum class Phase(@StringRes val label: Int) {
     FOCUS(R.string.phase_focus), SHORT_BREAK(R.string.phase_short_break), LONG_BREAK(R.string.phase_long_break)
 }
 
-data class TimerSettings(val focusMin: Int = 25, val shortMin: Int = 5, val longMin: Int = 15, val sessions: Int = 4) {
+data class TimerSettings(
+    val focusMin: Int = 25,
+    val shortMin: Int = 5,
+    val longMin: Int = 15,
+    val sessions: Int = 4,
+    /** Start the next phase on its own and just chime, instead of the full-screen "Continue" alarm. */
+    val autoStart: Boolean = false,
+) {
     fun lengthMs(p: Phase) = 60_000L * when (p) {
         Phase.FOCUS -> focusMin
         Phase.SHORT_BREAK -> shortMin
@@ -133,15 +141,24 @@ class PomodoroTimer @Inject constructor(
     fun onPhaseEnd() = op { s, set ->
         if (!s.running) return@op
         val (phase, done) = nextPhase(s.phase, s.done, set.sessions)
+        val title = context.getString(R.string.phase_done, context.getString(s.phase.label))
+        val next = context.getString(phase.label)
+        val minutes = (set.lengthMs(phase) / 60_000).toInt()
+        if (set.autoStart) {
+            // Keep going: a plain chime notification instead of the full-screen alarm; "End period" still stops it.
+            val endAt = System.currentTimeMillis() + set.lengthMs(phase)
+            save(TimerState(phase, done, endAt), set)
+            scheduler.setTimer(endAt)
+            ringer.ringTimer(
+                Reminder(id = RING_ID, title = title, note = context.getString(R.string.phase_started, next, minutes), time = LocalTime.now(), ring = false),
+                continueLabel = "",
+            )
+            return@op
+        }
         save(TimerState(phase, done), set)
         ringer.ringTimer(
-            Reminder(
-                id = RING_ID,
-                title = context.getString(R.string.phase_done, context.getString(s.phase.label)),
-                note = context.getString(R.string.up_next, context.getString(phase.label), (set.lengthMs(phase) / 60_000).toInt()),
-                time = LocalTime.now(),
-            ),
-            context.getString(R.string.continue_to, context.getString(phase.label)),
+            Reminder(id = RING_ID, title = title, note = context.getString(R.string.up_next, next, minutes), time = LocalTime.now()),
+            context.getString(R.string.continue_to, next),
         )
     }
 
@@ -149,6 +166,7 @@ class PomodoroTimer @Inject constructor(
         store.edit {
             it[FOCUS_MIN] = new.focusMin; it[SHORT_MIN] = new.shortMin
             it[LONG_MIN] = new.longMin; it[SESSIONS] = new.sessions
+            it[AUTO_START] = new.autoStart
         }
         notify(s, new)
     }
@@ -237,6 +255,7 @@ class PomodoroTimer @Inject constructor(
         shortMin = this[SHORT_MIN] ?: 5,
         longMin = this[LONG_MIN] ?: 15,
         sessions = this[SESSIONS] ?: 4,
+        autoStart = this[AUTO_START] ?: false,
     )
 
     companion object {
@@ -254,5 +273,6 @@ class PomodoroTimer @Inject constructor(
         private val SHORT_MIN = intPreferencesKey("short_min")
         private val LONG_MIN = intPreferencesKey("long_min")
         private val SESSIONS = intPreferencesKey("sessions")
+        private val AUTO_START = booleanPreferencesKey("auto_start")
     }
 }

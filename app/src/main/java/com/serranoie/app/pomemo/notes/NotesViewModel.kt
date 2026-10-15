@@ -32,6 +32,11 @@ class NotesViewModel @Inject constructor(private val dao: NoteDao) : ViewModel()
         _editor.value = NoteEditorState(note.id, TextFieldValue(note.body, TextRange(note.body.length)), note.body)
     }
 
+    /** Ticks a checklist box straight from the card; the note keeps its place in the list. */
+    fun check(note: Note, bracket: Int) = viewModelScope.launch {
+        dao.upsert(note.copy(body = toggleCheckbox(note.body, bracket)))
+    }
+
     fun update(value: TextFieldValue) = _editor.update { it?.copy(value = value) }
 
     /**

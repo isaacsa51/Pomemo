@@ -1,5 +1,12 @@
 package com.serranoie.app.pomemo.alarm
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOf
+import com.serranoie.app.pomemo.notes.toggleCheckbox
+import com.serranoie.app.pomemo.data.NoteDao
+import com.serranoie.app.pomemo.data.Note
+import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.remember
 import androidx.compose.material.icons.rounded.Stop
 import android.view.View
 import android.os.Build
@@ -65,6 +72,7 @@ import javax.inject.Inject
 class AlarmActivity : ComponentActivity() {
     @Inject lateinit var ringer: Ringer
     @Inject lateinit var timer: PomodoroTimer
+    @Inject lateinit var notes: NoteDao
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,8 +99,13 @@ class AlarmActivity : ComponentActivity() {
                             secondary = AlarmAction(stringResource(R.string.end_period), Icons.Rounded.Stop, HapticUtil::performRejectHaptic) { timer.reset() },
                         )
                     } else {
+                        val attached by remember(r.noteId) { r.noteId?.let(notes::observe) ?: flowOf(null) }.collectAsStateWithLifecycle(null)
                         AlarmScreen(
                             reminder = r,
+                            attached = attached,
+                            onCheck = { bracket ->
+                                attached?.let { n -> lifecycleScope.launch { notes.upsert(n.copy(body = toggleCheckbox(n.body, bracket))) } }
+                            },
                             primary = AlarmAction(stringResource(R.string.dismiss), Icons.Rounded.AlarmOff, HapticUtil::performConfirmHaptic) { ringer.stop(r.id) },
                             secondary = AlarmAction(stringResource(R.string.snooze), Icons.Rounded.Snooze, HapticUtil::performUIHaptic) { ringer.snooze(r.id) },
                         )
@@ -111,7 +124,7 @@ data class AlarmAction(val label: String, val icon: ImageVector, val haptic: (Vi
  * the bottom so they stay in thumb reach and never truncate at big font scales.
  */
 @Composable
-fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction) {
+fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction, attached: Note? = null, onCheck: (Int) -> Unit = {}) {
     val pane = stringResource(R.string.alarm_pane)
     val view = LocalView.current
     Surface(
@@ -141,6 +154,21 @@ fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction
                     // Same highlighter as Notes: markdown in a reminder note shows styled.
                     val colors = rememberMarkdownColors()
                     Text(highlightMarkdown(reminder.note, colors, rendered = true), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                }
+                attached?.let { n ->
+                    // The attached note's checklist can be ticked right here.
+                    val colors = rememberMarkdownColors()
+                    Surface(
+                        Modifier.widthIn(max = 480.dp).fillMaxWidth(),
+                        shape = MaterialTheme.shapes.extraLarge,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ) {
+                        Text(
+                            highlightMarkdown(n.body, colors, rendered = true, onCheck = onCheck),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(20.dp),
+                        )
+                    }
                 }
             }
             val height = ButtonDefaults.LargeContainerHeight
@@ -177,6 +205,7 @@ private fun AlarmScreenPreview() = PomemoTheme {
         Reminder(title = "Stretch", note = "Neck, shoulders, wrists", time = LocalTime.NOON),
         AlarmAction("Dismiss", Icons.Rounded.AlarmOff, {}) {},
         AlarmAction("Snooze", Icons.Rounded.Snooze, {}) {},
+        attached = Note(1, "### Before bed\n- [x] pills\n- [ ] alarm for 7:00", 0),
     )
 }
 

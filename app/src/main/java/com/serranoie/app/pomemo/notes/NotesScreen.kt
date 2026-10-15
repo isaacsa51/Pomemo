@@ -41,12 +41,12 @@ import com.serranoie.app.pomemo.ui.theme.PomemoTheme
 fun NotesScreen(vm: NotesViewModel = hiltViewModel()) {
     val notes by vm.notes.collectAsStateWithLifecycle()
     val editor by vm.editor.collectAsStateWithLifecycle()
-    NotesContent(notes, onOpen = vm::open)
+    NotesContent(notes, onOpen = vm::open, onCheck = { n, i -> vm.check(n, i) })
     editor?.let { NoteEditor(it, onChange = vm::update, onSave = vm::close, onDelete = vm::delete) }
 }
 
 @Composable
-fun NotesContent(notes: List<Note>, onOpen: (Note) -> Unit) {
+fun NotesContent(notes: List<Note>, onOpen: (Note) -> Unit, onCheck: (Note, Int) -> Unit = { _, _ -> }) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val colors = rememberMarkdownColors()
     Scaffold(
@@ -70,15 +70,16 @@ fun NotesContent(notes: List<Note>, onOpen: (Note) -> Unit) {
                     )
                 }
             }
-            items(notes, key = { it.id }) { note -> NoteCard(note, colors) { onOpen(note) } }
+            items(notes, key = { it.id }) { note -> NoteCard(note, colors, onCheck = { onCheck(note, it) }) { onOpen(note) } }
         }
     }
 }
 
 @Composable
-private fun NoteCard(note: Note, colors: MarkdownColors, onClick: () -> Unit) {
+private fun NoteCard(note: Note, colors: MarkdownColors, onCheck: (Int) -> Unit, onClick: () -> Unit) {
     val view = LocalView.current
-    val body = remember(note.body, colors) { highlightMarkdown(note.body, colors, rendered = true) }
+    // ☐/☑ are links: tapping one ticks it in place, tapping anywhere else opens the editor.
+    val body = remember(note.body, colors) { highlightMarkdown(note.body, colors, rendered = true, onCheck = onCheck) }
     Card(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),

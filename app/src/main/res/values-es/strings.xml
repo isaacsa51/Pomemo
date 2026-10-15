@@ -16,7 +16,7 @@
 
     <!-- Timer -->
     <string name="timer_title">Pomodoro</string>
-    <string name="timer_settings">Ajustes del temporizador</string>
+    <string name="timer_settings">Ajustes</string>
     <string name="start">Iniciar</string>
     <string name="pause">Pausar</string>
     <string name="reset">Restablecer</string>
@@ -109,4 +109,18 @@
     <string name="format_numbered">Lista numerada</string>
     <string name="format_checklist">Lista de tareas</string>
     <string name="preview">Vista previa</string>
+    <string name="missed">Sin atender: %1$s</string>
+    <string name="phase_started">Empezó: %1$s · %2$d min</string>
+    <string name="auto_start">Iniciar la siguiente fase automáticamente</string>
+    <string name="auto_start_summary">Un aviso breve en lugar de la alarma a pantalla completa</string>
+    <string name="snooze_length">Duración de posponer</string>
+    <string name="ring_length">Sonar durante</string>
+    <string name="skip_today">Saltar hoy</string>
+    <string name="unskip_today">Sonar hoy</string>
+    <string name="schedule_skipped">%1$s · hoy no</string>
+    <string name="attached_note">Nota en la alarma</string>
+    <string name="attach_note">Adjuntar nota</string>
+    <string name="choose_note">Elige una nota</string>
+    <string name="detach_note">Quitar nota</string>
+    <string name="no_notes">Aún no hay notas. Crea una en la pestaña Notas.</string>
 </resources>

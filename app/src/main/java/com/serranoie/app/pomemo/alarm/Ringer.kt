@@ -10,19 +10,37 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.data.Reminder
 import com.serranoie.app.pomemo.timer.PomodoroTimer
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class AlarmSettings(val snoozeMin: Int = 10, val ringMin: Int = 10)
+
+private val Context.alarmStore by preferencesDataStore("alarms")
 
 /**
  * Single source of truth for "what is ringing". Plain reminders are just a notification; ringing
  * ones start [RingService] (sound) and open [AlarmActivity] (UI), both of which follow [ringing].
+ * An alarm that fires while another rings waits in a queue and rings when the current one stops.
  */
 @Singleton
 class Ringer @Inject constructor(
@@ -30,10 +48,23 @@ class Ringer @Inject constructor(
     private val scheduler: AlarmScheduler,
 ) {
     private val nm = context.getSystemService(NotificationManager::class.java)
+    private val store = context.alarmStore
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _ringing = MutableStateFlow<Reminder?>(null)
     val ringing: StateFlow<Reminder?> = _ringing.asStateFlow()
+    // ponytail: queued alarms stay invisible until their turn and are lost if the process dies
+    private val queue = ArrayDeque<Reminder>()
 
-    /** "Continue to Short break": set by the timer when a phase ends, shown by the notification and AlarmActivity. */
+    val settings: StateFlow<AlarmSettings> = store.data.map { it.settings() }.stateIn(scope, SharingStarted.Eagerly, AlarmSettings())
+
+    /** Reads the store, not [settings], so a cold start right after boot doesn't see the defaults. */
+    suspend fun loadSettings(): AlarmSettings = store.data.first().settings()
+
+    fun updateSettings(new: AlarmSettings) = scope.launch {
+        store.edit { it[SNOOZE_MIN] = new.snoozeMin; it[RING_MIN] = new.ringMin }
+    }
+
+    /** "Continue to Short break": set by the timer when a phase ends, shown by the notification and AlarmActivity. Blank = no button. */
     var continueLabel: String = ""
         private set
 
@@ -42,27 +73,48 @@ class Ringer @Inject constructor(
         ring(reminder)
     }
 
+    @Synchronized
     fun ring(reminder: Reminder) {
         createChannels()
         if (!reminder.ring) return nm.notify(reminder.id.toInt(), notification(reminder))
-        // ponytail: a second alarm replaces the one ringing; queue them if overlaps become common
-        _ringing.value?.let { if (it.id != reminder.id) nm.cancel(it.id.toInt()) }
+        val current = _ringing.value
+        if (current != null && current.id != reminder.id) {
+            if (queue.none { it.id == reminder.id }) queue.addLast(reminder)
+            return
+        }
         _ringing.value = reminder
         ContextCompat.startForegroundService(context, Intent(context, RingService::class.java))
     }
 
+    /** Stops [id] wherever it is; if it was ringing, the next queued alarm takes over (RingService follows). */
+    @Synchronized
     fun stop(id: Long) {
         nm.cancel(id.toInt())
-        if (_ringing.value?.id == id) {
-            _ringing.value = null
-            context.stopService(Intent(context, RingService::class.java))
-        }
+        queue.removeAll { it.id == id }
+        if (_ringing.value?.id == id) _ringing.value = queue.removeFirstOrNull()
     }
 
-    fun snooze(id: Long) {
+    fun snooze(id: Long): Job {
         stop(id)
-        // ponytail: hardcoded snooze length until settings exist
-        scheduler.snooze(id, SNOOZE_MINUTES)
+        return scope.launch { scheduler.snooze(id, loadSettings().snoozeMin) }
+    }
+
+    /** Rang for the whole ring length unanswered: stop it and leave a quiet "Missed" notification. */
+    fun timeout(id: Long) {
+        val missed = _ringing.value?.takeIf { it.id == id } ?: return
+        stop(id)
+        nm.notify(
+            MISSED_TAG, id.toInt(),
+            NotificationCompat.Builder(context, CH_REMINDER)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(context.getString(R.string.missed, missed.title))
+                .setContentText(missed.note.ifBlank { null })
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setSilent(true)
+                .setAutoCancel(true)
+                .setContentIntent(appIntent())
+                .build(),
+        )
     }
 
     fun canUseFullScreen(): Boolean =
@@ -75,11 +127,12 @@ class Ringer @Inject constructor(
             .setContentTitle(reminder.title)
             .setContentText(reminder.note.ifBlank { null })
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setContentIntent(activityIntent(id))
+            // AlarmActivity closes itself when nothing rings, so plain notifications open the app.
+            .setContentIntent(if (reminder.ring) activityIntent(id) else appIntent())
             .setDeleteIntent(receiverIntent(AlarmReceiver.ACTION_DISMISS, id))
         if (id == PomodoroTimer.RING_ID) {
             // Both stop the ring: starting the next phase or resetting the timer calls ringer.stop.
-            builder.addAction(0, continueLabel, receiverIntent(AlarmReceiver.ACTION_TIMER_START, id))
+            if (continueLabel.isNotBlank()) builder.addAction(0, continueLabel, receiverIntent(AlarmReceiver.ACTION_TIMER_START, id))
             builder.addAction(0, context.getString(R.string.end_period), receiverIntent(AlarmReceiver.ACTION_TIMER_RESET, id))
         } else {
             builder.addAction(0, context.getString(R.string.snooze), receiverIntent(AlarmReceiver.ACTION_SNOOZE, id))
@@ -116,11 +169,19 @@ class Ringer @Inject constructor(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
+    private fun appIntent() = PendingIntent.getActivity(
+        context, 0, context.packageManager.getLaunchIntentForPackage(context.packageName), PendingIntent.FLAG_IMMUTABLE,
+    )
+
     private fun receiverIntent(action: String, id: Long) = AlarmReceiver.broadcast(context, action, "pomemo://ring/$id")
+
+    private fun Preferences.settings() = AlarmSettings(snoozeMin = this[SNOOZE_MIN] ?: 10, ringMin = this[RING_MIN] ?: 10)
 
     companion object {
         const val CH_RINGING = "ringing"
         const val CH_REMINDER = "reminders"
-        const val SNOOZE_MINUTES = 10
+        private const val MISSED_TAG = "missed"
+        private val SNOOZE_MIN = intPreferencesKey("snooze_min")
+        private val RING_MIN = intPreferencesKey("ring_min")
     }
 }

@@ -2,6 +2,8 @@ package com.serranoie.app.pomemo.timer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.serranoie.app.pomemo.alarm.AlarmSettings
+import com.serranoie.app.pomemo.alarm.Ringer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -15,9 +17,10 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
-class TimerViewModel @Inject constructor(private val timer: PomodoroTimer) : ViewModel() {
+class TimerViewModel @Inject constructor(private val timer: PomodoroTimer, private val ringer: Ringer) : ViewModel() {
     val state = timer.state
     val settings = timer.settings
+    val alarmSettings = ringer.settings
 
     /** Ticks only while the screen collects it; nothing runs in the background. */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,4 +40,5 @@ class TimerViewModel @Inject constructor(private val timer: PomodoroTimer) : Vie
     fun skip() { timer.skip() }
     fun reset() { timer.reset() }
     fun updateSettings(new: TimerSettings) { timer.updateSettings(new) }
+    fun updateAlarmSettings(new: AlarmSettings) { ringer.updateSettings(new) }
 }

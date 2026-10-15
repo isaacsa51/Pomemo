@@ -1,5 +1,8 @@
 package com.serranoie.app.pomemo.notes
 
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -61,25 +64,34 @@ private val STRIKE = Regex("""~~(?=\S)(.+?)(?<=\S)~~""")
 private val LINK = Regex("""\[([^\]\n]+)]\(([^)\n]+)\)""")
 
 /** A piece of syntax to drop (or swap for [replacement]) when rendering without markdown symbols. */
-private data class Edit(val start: Int, val end: Int, val replacement: String = "")
+private data class Edit(val start: Int, val end: Int, val replacement: String = "", val check: Int = -1)
 
 /**
  * Styles markdown. With [rendered] = false (editing) every symbol stays, just coloured. With
  * [rendered] = true (cards, preview, alarm notes) the symbols go: `#`, `**`, `_`, `~~`, backticks
  * and fences disappear, list markers become •/☐/☑ and quotes get a bar.
+ *
+ * With [onCheck], rendered ☐/☑ boxes are tappable links that report the offset of their `[` in [text]
+ * (feed it to [toggleCheckbox]).
  */
-fun highlightMarkdown(text: String, c: MarkdownColors, rendered: Boolean = false): AnnotatedString {
+fun highlightMarkdown(text: String, c: MarkdownColors, rendered: Boolean = false, onCheck: ((Int) -> Unit)? = null): AnnotatedString {
     val edits = mutableListOf<Edit>()
     val styled = styleMarkdown(text, c, edits)
-    return if (rendered) applyEdits(styled, edits, c.marker) else styled
+    return if (rendered) applyEdits(styled, edits, c.marker, onCheck) else styled
 }
 
-private fun applyEdits(s: AnnotatedString, edits: List<Edit>, color: Color) = buildAnnotatedString {
+private fun applyEdits(s: AnnotatedString, edits: List<Edit>, color: Color, onCheck: ((Int) -> Unit)?) = buildAnnotatedString {
     var pos = 0
     for (e in edits.sortedBy { it.start }) {
         if (e.start < pos) continue // overlapping syntax: the first one wins
         append(s.subSequence(pos, e.start))
-        if (e.replacement.isNotEmpty()) withStyle(SpanStyle(color = color)) { append(e.replacement) }
+        val style = SpanStyle(color = color)
+        when {
+            e.replacement.isEmpty() -> Unit
+            e.check >= 0 && onCheck != null ->
+                withLink(LinkAnnotation.Clickable("check:${e.check}", TextLinkStyles(style)) { onCheck(e.check) }) { append(e.replacement) }
+            else -> withStyle(style) { append(e.replacement) }
+        }
         pos = e.end
     }
     append(s.subSequence(pos, s.length))
@@ -128,7 +140,8 @@ private fun styleMarkdown(text: String, c: MarkdownColors, edits: MutableList<Ed
                         mark.trim().first().isDigit() -> null // numbers read fine as they are
                         else -> "• "
                     }
-                    if (symbol != null) edits += Edit(start, start + m.range.last + 1, indent + symbol)
+                    val bracket = mark.indexOf('[').let { if (it < 0) -1 else start + it }
+                    if (symbol != null) edits += Edit(start, start + m.range.last + 1, indent + symbol, bracket)
                 }
                 inline(line, start, marker, code, c, edits)
             }
@@ -178,6 +191,18 @@ private fun AnnotatedString.Builder.inline(
         edits += Edit(offset + text.last + 1, offset + m.range.last + 1) // "](url)"
     }
 }
+
+/** Flips the checklist box whose `[` sits at [bracket]: `[ ]` ↔ `[x]`. Anything else is left alone. */
+fun toggleCheckbox(text: String, bracket: Int): String {
+    if (text.getOrNull(bracket) != '[' || text.getOrNull(bracket + 2) != ']') return text
+    return text.replaceRange(bracket + 1, bracket + 2, if (text[bracket + 1] == ' ') "x" else " ")
+}
+
+private val PLAIN = MarkdownColors(Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified)
+
+/** The note's first non-blank line without markdown symbols, for pickers and labels. */
+fun noteTitle(body: String): String =
+    body.lineSequence().firstOrNull { it.isNotBlank() }?.let { highlightMarkdown(it, PLAIN, rendered = true).text.trim() }.orEmpty()
 
 /** Live highlighting in the editor; offsets map 1:1 because no characters are added or hidden. */
 data class MarkdownTransformation(val colors: MarkdownColors) : VisualTransformation {

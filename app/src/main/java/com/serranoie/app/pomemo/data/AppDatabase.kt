@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import java.time.LocalDate
 import java.time.LocalTime
 
-@Database(entities = [Reminder::class, Note::class], version = 2, exportSchema = false)
+@Database(entities = [Reminder::class, Note::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
@@ -20,6 +20,14 @@ abstract class AppDatabase : RoomDatabase() {
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `Note` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `body` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)")
+    }
+}
+
+/** v3: "skip today" and an attached note on reminders. Both nullable, so old rows need nothing. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `Reminder` ADD COLUMN `skipDate` INTEGER")
+        db.execSQL("ALTER TABLE `Reminder` ADD COLUMN `noteId` INTEGER")
     }
 }
 

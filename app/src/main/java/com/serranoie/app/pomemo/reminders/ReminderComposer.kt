@@ -1,5 +1,17 @@
 package com.serranoie.app.pomemo.reminders
 
+import com.serranoie.app.pomemo.notes.noteTitle
+import com.serranoie.app.pomemo.data.Note
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.InputChip
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.platform.LocalView
 import com.serranoie.app.pomemo.ui.HapticUtil
 import android.text.format.DateFormat
@@ -16,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -91,6 +104,7 @@ import java.time.format.TextStyle
 @Composable
 fun ReminderComposerSheet(
     composer: Composer,
+    notes: List<Note>,
     onUpdate: (Composer.() -> Composer) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
@@ -101,6 +115,8 @@ fun ReminderComposerSheet(
     var pickTime by rememberSaveable { mutableStateOf(false) }
     var pickDate by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var pickNote by rememberSaveable { mutableStateOf(false) }
+    val attached = notes.firstOrNull { it.id == composer.noteId }
 
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         ReminderComposerContent(
@@ -108,8 +124,11 @@ fun ReminderComposerSheet(
             onPickTime = { pickTime = true },
             onPickDate = { pickDate = true },
             onDelete = { confirmDelete = true },
+            attachedTitle = attached?.let { noteTitle(it.body) },
+            onPickNote = { pickNote = true },
         )
     }
+    if (pickNote) NoteDialog(notes, attached?.id, { pickNote = false }) { id -> onUpdate { copy(noteId = id) } }
     if (pickTime) TimeDialog(draft.time ?: LocalTime.now().plusHours(1).withMinute(0), { pickTime = false }) { t ->
         onUpdate { copy(time = t) }
     }
@@ -143,6 +162,8 @@ fun ReminderComposerContent(
     onPickTime: () -> Unit,
     onPickDate: () -> Unit,
     onDelete: () -> Unit,
+    attachedTitle: String? = null,
+    onPickNote: () -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val view = LocalView.current
@@ -242,6 +263,20 @@ fun ReminderComposerContent(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        Section(stringResource(R.string.attached_note)) {
+            // Shown on the alarm screen, where its checklist can be ticked off.
+            if (attachedTitle == null) AssistChip(
+                onClick = { HapticUtil.performUIHaptic(view); onPickNote() },
+                label = { Text(stringResource(R.string.attach_note)) },
+                leadingIcon = { Icon(Icons.Rounded.AttachFile, contentDescription = null) },
+            ) else InputChip(
+                selected = true,
+                onClick = { HapticUtil.performUIHaptic(view); onPickNote() },
+                label = { Text(attachedTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+            )
+        }
+
         Row(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
             if (editing) TextButton(
                 onClick = { HapticUtil.performUIHaptic(view); onDelete() },
@@ -280,6 +315,41 @@ private fun IconLabel(icon: ImageVector, label: String) {
     Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
     Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
     Text(label)
+}
+
+/** Pick one note (radio list); "Remove note" detaches the current one. */
+@Composable
+private fun NoteDialog(notes: List<Note>, selected: Long?, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
+    val view = LocalView.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.choose_note)) },
+        text = {
+            if (notes.isEmpty()) Text(stringResource(R.string.no_notes))
+            else LazyColumn(Modifier.selectableGroup()) {
+                items(notes, key = { it.id }) { n ->
+                    ListItem(
+                        headlineContent = { Text(noteTitle(n.body), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { RadioButton(selected = n.id == selected, onClick = null) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.selectable(n.id == selected, role = Role.RadioButton) {
+                            HapticUtil.performLightHaptic(view)
+                            onPick(n.id)
+                            onDismiss()
+                        },
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onDismiss, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = if (selected == null) null else ({
+            TextButton(
+                { onPick(null); onDismiss() },
+                shapes = ButtonDefaults.shapes(),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.detach_note)) }
+        }),
+    )
 }
 
 @Composable
