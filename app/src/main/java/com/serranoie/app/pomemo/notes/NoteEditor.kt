@@ -43,6 +43,16 @@ import androidx.compose.material.icons.rounded.Title
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.AddLink
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.material3.IconButtonShapes
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material.icons.automirrored.rounded.FormatIndentDecrease
 import androidx.compose.material.icons.automirrored.rounded.FormatIndentIncrease
@@ -110,6 +120,18 @@ private val FORMATS = listOf(
 
 private val INNER_CORNER = 8.dp
 
+/** Same pill as the format toggles, for plain (non-toggle) buttons. */
+private fun connectedShapes(index: Int, count: Int): IconButtonShapes {
+    val round = CornerSize(50)
+    val inner = CornerSize(INNER_CORNER)
+    val shape = when (index) {
+        0 -> RoundedCornerShape(topStart = round, topEnd = inner, bottomEnd = inner, bottomStart = round)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = round, bottomEnd = round, bottomStart = inner)
+        else -> RoundedCornerShape(inner)
+    }
+    return IconButtonShapes(shape = shape, pressedShape = RoundedCornerShape(INNER_CORNER / 2))
+}
+
 /** Pill segment shapes: outer ends fully round on the first/last item, tight inner corners, circle when on. */
 private fun connectedToggleShapes(index: Int, count: Int): IconToggleButtonShapes {
     val round = CornerSize(50)
@@ -124,21 +146,46 @@ private fun connectedToggleShapes(index: Int, count: Int): IconToggleButtonShape
 
 /** Full-screen editor. Back, ✕ and Save all save (see [NotesViewModel.close]); only Delete throws away. */
 @Composable
-fun NoteEditor(state: NoteEditorState, onChange: (TextFieldValue) -> Unit, onSave: () -> Unit, onDelete: () -> Unit) {
+fun NoteEditor(
+    state: NoteEditorState,
+    onChange: (TextFieldValue) -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+    onImagePicked: (Uri) -> Unit = {},
+) {
+    // System photo picker: no storage permission, the user only shares the photo they pick.
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(onImagePicked) }
     Dialog(
         onDismissRequest = onSave,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        NoteEditorContent(state, onChange, onSave, onDelete)
+        NoteEditorContent(state, onChange, onSave, onDelete, onAddImage = {
+            pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        })
     }
 }
 
 @Composable
-fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit, onSave: () -> Unit, onDelete: () -> Unit) {
+fun NoteEditorContent(
+    state: NoteEditorState,
+    onChange: (TextFieldValue) -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+    onAddImage: () -> Unit = {},
+) {
     val view = LocalView.current
     val colors = rememberMarkdownColors()
     val focus = remember { FocusRequester() }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var addLink by rememberSaveable { mutableStateOf(false) }
+    val column1 = stringResource(R.string.table_column, 1)
+    val column2 = stringResource(R.string.table_column, 2)
+    // Second group: things to insert rather than formats to toggle.
+    val inserts = listOf(
+        Triple(Icons.Rounded.AddPhotoAlternate, R.string.insert_image, onAddImage),
+        Triple(Icons.Rounded.TableChart, R.string.insert_table, { onChange(state.value.insertTable(column1, column2)) }),
+        Triple(Icons.Rounded.AddLink, R.string.insert_link, { addLink = true }),
+    )
     // Edit shows the markdown symbols (styled); Preview hides them and reads like the note cards.
     var preview by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(preview) { if (!preview) focus.requestFocus() }
@@ -248,6 +295,23 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
                                 ) { Icon(f.icon, contentDescription = label) }
                             }
                         }
+                        Spacer(Modifier.width(8.dp))
+                        inserts.forEachIndexed { i, (icon, labelRes, action) ->
+                            val label = stringResource(labelRes)
+                            WithTooltip(label) {
+                                FilledTonalIconButton(
+                                    onClick = { HapticUtil.performLightHaptic(view); action() },
+                                    shapes = connectedShapes(i, inserts.size),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    ),
+                                    modifier = Modifier
+                                        .size(IconButtonDefaults.smallContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
+                                        .focusProperties { canFocus = false },
+                                ) { Icon(icon, contentDescription = label) }
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -265,6 +329,12 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
         }
     }
 
+    if (addLink) LinkDialog(
+        initialLabel = state.value.text.substring(state.value.selection.min, state.value.selection.max),
+        onDismiss = { addLink = false },
+        onAdd = { label, url -> addLink = false; onChange(state.value.insertLink(label, url)) },
+    )
+
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
         title = { Text(stringResource(R.string.delete_note_title)) },
@@ -277,6 +347,36 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
             ) { Text(stringResource(R.string.delete)) }
         },
         dismissButton = { TextButton({ confirmDelete = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Text (prefilled with the selection) and address; Add stays off until there's an address. */
+@Composable
+private fun LinkDialog(initialLabel: String, onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
+    var label by rememberSaveable { mutableStateOf(initialLabel) }
+    var url by rememberSaveable { mutableStateOf("") }
+    val view = LocalView.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.insert_link)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.link_text)) }, singleLine = true)
+                OutlinedTextField(
+                    url, { url = it },
+                    label = { Text(stringResource(R.string.link_url)) },
+                    placeholder = { Text("https://") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton({ HapticUtil.performConfirmHaptic(view); onAdd(label, url) }, enabled = url.isNotBlank(), shapes = ButtonDefaults.shapes()) {
+                Text(stringResource(R.string.add))
+            }
+        },
+        dismissButton = { TextButton(onDismiss, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) } },
     )
 }
 

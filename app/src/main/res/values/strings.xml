@@ -152,4 +152,13 @@
         <item quantity="other">Snooze for %1$d minutes</item>
     </plurals>
     <string name="dictate">Dictate</string>
+    <string name="insert_image">Add image</string>
+    <string name="insert_table">Add table</string>
+    <string name="insert_link">Add link</string>
+    <string name="link_text">Text</string>
+    <string name="link_url">Address</string>
+    <string name="add">Add</string>
+    <string name="table_column">Column %1$d</string>
+    <string name="note_image">Image</string>
+    <string name="note_image_failed">Couldn’t add that image</string>
 </resources>

@@ -62,6 +62,10 @@ private val BOLD = Regex("""(\*\*|__)(?=\S)(.+?)(?<=\S)\1""")
 private val ITALIC = Regex("""(?<![*_\w])([*_])(?![*_\s])(.+?)(?<![\s*_])\1(?![*_\w])""")
 private val STRIKE = Regex("""~~(?=\S)(.+?)(?<=\S)~~""")
 private val LINK = Regex("""\[([^\]\n]+)]\(([^)\n]+)\)""")
+private val IMAGE = Regex("""!\[([^\]\n]*)]\(([^)\s]+)\)""")
+/** A line that is only an image: the preview draws it as a picture. Groups: alt, source. */
+val IMAGE_LINE = Regex("""^\s*!\[([^\]\n]*)]\(([^)\s]+)\)\s*$""")
+private val SAFE_URL = Regex("""^(https?://|mailto:)""", RegexOption.IGNORE_CASE)
 
 /** A piece of syntax to drop (or swap for [replacement]) when rendering without markdown symbols. */
 private data class Edit(val start: Int, val end: Int, val replacement: String = "", val check: Int = -1)
@@ -76,7 +80,7 @@ private data class Edit(val start: Int, val end: Int, val replacement: String = 
  */
 fun highlightMarkdown(text: String, c: MarkdownColors, rendered: Boolean = false, onCheck: ((Int) -> Unit)? = null): AnnotatedString {
     val edits = mutableListOf<Edit>()
-    val styled = styleMarkdown(text, c, edits)
+    val styled = styleMarkdown(text, c, edits, rendered)
     return if (rendered) applyEdits(styled, edits, c.marker, onCheck) else styled
 }
 
@@ -97,7 +101,7 @@ private fun applyEdits(s: AnnotatedString, edits: List<Edit>, color: Color, onCh
     append(s.subSequence(pos, s.length))
 }
 
-private fun styleMarkdown(text: String, c: MarkdownColors, edits: MutableList<Edit>): AnnotatedString = buildAnnotatedString {
+private fun styleMarkdown(text: String, c: MarkdownColors, edits: MutableList<Edit>, rendered: Boolean): AnnotatedString = buildAnnotatedString {
     append(text)
     val marker = SpanStyle(color = c.marker)
     val code = SpanStyle(fontFamily = FontFamily.Monospace, background = c.codeBackground)
@@ -113,6 +117,11 @@ private fun styleMarkdown(text: String, c: MarkdownColors, edits: MutableList<Ed
                 inFence = !inFence
             }
             inFence -> addStyle(code, start, end)
+            IMAGE_LINE.matches(line) -> {
+                // Pictures are drawn by the preview and the note cards; as text the line just goes away.
+                addStyle(marker, start, end)
+                edits += Edit(start, minOf(end + 1, text.length))
+            }
             RULE.matches(line) -> {
                 addStyle(marker, start, end)
                 edits += Edit(start, end, "────────────")
@@ -143,7 +152,7 @@ private fun styleMarkdown(text: String, c: MarkdownColors, edits: MutableList<Ed
                     val bracket = mark.indexOf('[').let { if (it < 0) -1 else start + it }
                     if (symbol != null) edits += Edit(start, start + m.range.last + 1, indent + symbol, bracket)
                 }
-                inline(line, start, marker, code, c, edits)
+                inline(line, start, marker, code, c, edits, rendered)
             }
         }
         start = end + 1
@@ -157,10 +166,17 @@ private fun AnnotatedString.Builder.inline(
     code: SpanStyle,
     c: MarkdownColors,
     edits: MutableList<Edit>,
+    rendered: Boolean,
 ) {
     // Code spans first; nothing else is styled inside them.
     val codeRanges = CODE_SPAN.findAll(line).map { it.range }.toList()
-    fun inCode(r: IntRange) = codeRanges.any { r.first >= it.first && r.last <= it.last }
+    // Images inside a sentence read as "🖼 alt"; their [alt](src) must not also become a link.
+    val imageRanges = IMAGE.findAll(line).filterNot { m -> codeRanges.any { m.range.first in it } }.toList()
+    fun inCode(r: IntRange) = (codeRanges + imageRanges.map { it.range }).any { r.first >= it.first && r.last <= it.last }
+    for (m in imageRanges) {
+        addStyle(marker, offset + m.range.first, offset + m.range.last + 1)
+        edits += Edit(offset + m.range.first, offset + m.range.last + 1, "🖼 " + m.groupValues[1])
+    }
     for (r in codeRanges) {
         addStyle(code, offset + r.first, offset + r.last + 1)
         addStyle(marker, offset + r.first, offset + r.first + 1)
@@ -187,6 +203,9 @@ private fun AnnotatedString.Builder.inline(
         addStyle(marker, offset + m.range.first, offset + m.range.last + 1)
         val text = m.groups[1]!!.range
         addStyle(SpanStyle(color = c.link, textDecoration = TextDecoration.Underline), offset + text.first, offset + text.last + 1)
+        // Rendered links open in the browser; only web and mail links, never file or app schemes.
+        val url = m.groupValues[2].trim()
+        if (rendered && SAFE_URL.containsMatchIn(url)) addLink(LinkAnnotation.Url(url), offset + text.first, offset + text.last + 1)
         edits += Edit(offset + m.range.first, offset + text.first) // "["
         edits += Edit(offset + text.last + 1, offset + m.range.last + 1) // "](url)"
     }
@@ -200,9 +219,12 @@ fun toggleCheckbox(text: String, bracket: Int): String {
 
 private val PLAIN = MarkdownColors(Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified)
 
-/** The note's first non-blank line without markdown symbols, for pickers and labels. */
+/** The note's first line with text, without markdown symbols, for pickers and labels (image-only lines are skipped). */
 fun noteTitle(body: String): String =
-    body.lineSequence().firstOrNull { it.isNotBlank() }?.let { highlightMarkdown(it, PLAIN, rendered = true).text.trim() }.orEmpty()
+    body.lineSequence().firstNotNullOfOrNull { line -> highlightMarkdown(line, PLAIN, rendered = true).text.trim().takeIf { it.isNotEmpty() } }.orEmpty()
+
+/** Source of the first image in [body], for the note card's thumbnail. */
+fun firstImage(body: String): String? = body.lineSequence().firstNotNullOfOrNull { IMAGE_LINE.find(it)?.groupValues?.get(2) }
 
 /** Live highlighting in the editor; offsets map 1:1 because no characters are added or hidden. */
 data class MarkdownTransformation(val colors: MarkdownColors) : VisualTransformation {
@@ -317,6 +339,41 @@ fun TextFieldValue.toggle(f: LineFormat): TextFieldValue {
     out.setLength(out.length - 1)
     out.append(text.substring(last))
     return spliced(out.toString(), splices).renumbered()
+}
+
+// ---------------------------------------------------------------------------------------------
+// Inserts from the toolbar's second group: image, table, link.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Puts [block] on its own line(s) in place of the selection, adding line breaks around it only
+ * where needed. The caret lands at [caret] within the block, or on the line after it when null.
+ */
+fun TextFieldValue.insertBlock(block: String, caret: Int? = null): TextFieldValue {
+    val s = selection.min
+    val e = selection.max
+    val before = if (s > 0 && text[s - 1] != '\n') "\n" else ""
+    val after = if (e < text.length && text[e] == '\n') "" else "\n"
+    val start = s + before.length
+    val t = text.substring(0, s) + before + block + after + text.substring(e)
+    return TextFieldValue(t, TextRange(if (caret != null) start + caret else start + block.length + 1))
+}
+
+fun TextFieldValue.insertImage(source: String, alt: String = "") = insertBlock("![$alt]($source)")
+
+/** A 2×2 table with the caret in the first body cell. */
+fun TextFieldValue.insertTable(header1: String, header2: String): TextFieldValue {
+    val head = "| $header1 | $header2 |"
+    val rule = "| --- | --- |"
+    return insertBlock("$head\n$rule\n|  |  |", caret = head.length + rule.length + 4)
+}
+
+/** `[label](url)` in place of the selection; a bare domain gets https://, a blank label shows the url. */
+fun TextFieldValue.insertLink(label: String, url: String): TextFieldValue {
+    val u = url.trim().let { if (SAFE_URL.containsMatchIn(it) || it.isEmpty()) it else "https://$it" }
+    val link = "[${label.trim().ifEmpty { u }}]($u)"
+    val t = text.replaceRange(selection.min, selection.max, link)
+    return TextFieldValue(t, TextRange(selection.min + link.length))
 }
 
 // ---------------------------------------------------------------------------------------------

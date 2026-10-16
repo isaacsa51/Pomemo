@@ -2,7 +2,16 @@ package com.serranoie.app.pomemo.notes
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,22 +48,33 @@ import androidx.compose.ui.zIndex
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.ui.HapticUtil
 
-/** A run of consecutive lines: list items (reorderable) or anything else (one rendered text). */
-private data class Block(val lines: List<String>, val isList: Boolean)
+private enum class Kind { TEXT, LIST, IMAGE, TABLE }
 
-/** Splits a note into list runs and the rest. Lines inside ``` fences never count as list items. */
+/** A run of consecutive lines drawn one way: text, a reorderable list, a picture or a table. */
+private data class Block(val lines: List<String>, val kind: Kind)
+
+private val TABLE_RULE = Regex("""^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$""")
+
+/** Splits a note into blocks. Lines inside ``` fences are always text; each picture is its own block. */
 private fun blocks(text: String): List<Block> {
     val out = mutableListOf<Block>()
     var inFence = false
     for (line in text.split('\n')) {
         val fence = line.trimStart().startsWith("```")
-        val isList = !inFence && !fence && isListLine(line)
+        val kind = when {
+            inFence || fence -> Kind.TEXT
+            IMAGE_LINE.matches(line) -> Kind.IMAGE
+            isListLine(line) -> Kind.LIST
+            line.trimStart().startsWith("|") -> Kind.TABLE
+            else -> Kind.TEXT
+        }
         if (fence) inFence = !inFence
         val last = out.lastOrNull()
-        if (last != null && last.isList == isList) out[out.lastIndex] = last.copy(lines = last.lines + line)
-        else out += Block(listOf(line), isList)
+        if (last != null && last.kind == kind && kind != Kind.IMAGE) out[out.lastIndex] = last.copy(lines = last.lines + line)
+        else out += Block(listOf(line), kind)
     }
-    return out
+    // Pipes without a --- rule under the first row aren't a table.
+    return out.map { if (it.kind == Kind.TABLE && (it.lines.size < 2 || !TABLE_RULE.matches(it.lines[1]))) it.copy(kind = Kind.TEXT) else it }
 }
 
 /**
@@ -68,11 +88,48 @@ fun NotePreview(text: String, colors: MarkdownColors, onTextChange: (String) -> 
         parts.forEachIndexed { b, block ->
             fun commit(lines: List<String>) =
                 onTextChange(parts.mapIndexed { i, p -> if (i == b) lines else p.lines }.flatten().joinToString("\n"))
-            if (block.isList) ReorderableLines(block.lines, colors, ::commit)
-            else Text(
-                remember(block, colors) { highlightMarkdown(block.lines.joinToString("\n"), colors, rendered = true) },
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            when (block.kind) {
+                Kind.LIST -> ReorderableLines(block.lines, colors, ::commit)
+                Kind.IMAGE -> IMAGE_LINE.find(block.lines[0])?.let { m ->
+                    NoteImage(m.groupValues[2], m.groupValues[1], Modifier.padding(vertical = 8.dp))
+                }
+                Kind.TABLE -> TableBlock(block.lines, colors)
+                Kind.TEXT -> Text(
+                    remember(block, colors) { highlightMarkdown(block.lines.joinToString("\n"), colors, rendered = true) },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+    }
+}
+
+private fun cells(line: String) = line.trim().removePrefix("|").removeSuffix("|").split('|').map { it.trim() }
+
+/** Header row tinted and bold, equal-width columns, thin dividers. The --- rule row isn't drawn. */
+@Composable
+private fun TableBlock(lines: List<String>, colors: MarkdownColors) {
+    val rows = remember(lines) { lines.filterIndexed { i, _ -> i != 1 }.map(::cells) }
+    val columns = rows.maxOf { it.size }
+    val border = MaterialTheme.colorScheme.outlineVariant
+    val shape = MaterialTheme.shapes.medium
+    Column(Modifier.padding(vertical = 8.dp).fillMaxWidth().clip(shape).border(1.dp, border, shape)) {
+        rows.forEachIndexed { r, row ->
+            Row(
+                Modifier
+                    .height(IntrinsicSize.Min)
+                    .background(if (r == 0) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent),
+            ) {
+                repeat(columns) { c ->
+                    if (c > 0) VerticalDivider(color = border)
+                    val cell = row.getOrElse(c) { "" }
+                    Text(
+                        remember(cell, colors) { highlightMarkdown(cell, colors, rendered = true) },
+                        style = if (r == 0) MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
+            if (r < rows.lastIndex) HorizontalDivider(color = border)
         }
     }
 }

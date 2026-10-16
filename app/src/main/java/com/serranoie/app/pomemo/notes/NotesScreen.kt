@@ -27,6 +27,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -46,7 +48,7 @@ fun NotesScreen(vm: NotesViewModel = hiltViewModel()) {
     val notes by vm.notes.collectAsStateWithLifecycle()
     val editor by vm.editor.collectAsStateWithLifecycle()
     NotesContent(notes, onOpen = vm::open, onCheck = { n, i -> vm.check(n, i) })
-    editor?.let { NoteEditor(it, onChange = vm::update, onSave = vm::close, onDelete = vm::delete) }
+    editor?.let { NoteEditor(it, onChange = vm::update, onSave = vm::close, onDelete = vm::delete, onImagePicked = vm::addImage) }
 }
 
 @Composable
@@ -97,7 +99,10 @@ private fun NoteCard(note: Note, colors: MarkdownColors, onCheck: (Int) -> Unit,
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(body, style = MaterialTheme.typography.bodyLarge, maxLines = 8, overflow = TextOverflow.Ellipsis)
+            // The first picture as a cover; its line is left out of the text below.
+            val cover = remember(note.body) { firstImage(note.body) }
+            if (cover != null) NoteImage(cover, alt = "", maxSide = 720, contentScale = ContentScale.Crop, modifier = Modifier.heightIn(max = 180.dp))
+            if (body.isNotBlank()) Text(body, style = MaterialTheme.typography.bodyLarge, maxLines = 8, overflow = TextOverflow.Ellipsis)
             // Last change, bottom-right in the condensed cut: "5 minutes ago", "Yesterday", "Oct 3".
             Text(
                 System.currentTimeMillis().let { now ->

@@ -149,7 +149,17 @@
     <string name="backup_failed">Ese archivo no es un respaldo de Pomemo</string>
     <plurals name="snooze_for">
         <item quantity="one">Posponer %1$d minuto</item>
+        <item quantity="many">Posponer %1$d minutos</item>
         <item quantity="other">Posponer %1$d minutos</item>
     </plurals>
     <string name="dictate">Dictar</string>
+    <string name="insert_image">Agregar imagen</string>
+    <string name="insert_table">Agregar tabla</string>
+    <string name="insert_link">Agregar enlace</string>
+    <string name="link_text">Texto</string>
+    <string name="link_url">Dirección</string>
+    <string name="add">Agregar</string>
+    <string name="table_column">Columna %1$d</string>
+    <string name="note_image">Imagen</string>
+    <string name="note_image_failed">No se pudo agregar la imagen</string>
 </resources>
