@@ -117,7 +117,7 @@ class Ringer @Inject constructor(
         nm.notify(
             MISSED_TAG, id.toInt(),
             NotificationCompat.Builder(context, CH_REMINDER)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(context.getString(R.string.missed, missed.title))
                 .setContentText(missed.note.ifBlank { null })
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -134,7 +134,7 @@ class Ringer @Inject constructor(
     fun notification(reminder: Reminder): Notification {
         val id = reminder.id
         val builder = NotificationCompat.Builder(context, if (reminder.ring) CH_RINGING else CH_REMINDER)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(reminder.title)
             .setContentText(reminder.note.ifBlank { null })
             .setPriority(NotificationCompat.PRIORITY_MAX)

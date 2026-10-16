@@ -232,7 +232,7 @@ class PomodoroTimer @Inject constructor(
         val (next, _) = nextPhase(s.phase, s.done, set.sessions)
 
         val b = NotificationCompat.Builder(context, CH_TIMER)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(s.phase.label))
             .setContentText(context.getString(R.string.up_next, context.getString(next.label), (set.lengthMs(next) / 60_000).toInt()))
             .setOngoing(true)
