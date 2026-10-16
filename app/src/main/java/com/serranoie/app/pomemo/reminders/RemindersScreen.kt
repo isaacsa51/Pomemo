@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.net.toUri
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.data.Reminder
+import com.serranoie.app.pomemo.ui.LocalNavBarPadding
+import com.serranoie.app.pomemo.ui.components.ExpressiveHeader
 import com.serranoie.app.pomemo.ui.theme.PomemoTheme
 import java.time.LocalDate
 import java.time.LocalTime
@@ -104,11 +106,13 @@ fun RemindersContent(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            MediumFlexibleTopAppBar(
-                title = { Text(stringResource(R.string.reminders_title)) },
-                subtitle = { Text(stringResource(R.string.reminders_active, reminders.count { it.enabled })) },
-                scrollBehavior = scrollBehavior,
-            )
+            ExpressiveHeader {
+                MediumFlexibleTopAppBar(
+                    title = { Text(stringResource(R.string.reminders_title)) },
+                    subtitle = { Text(stringResource(R.string.reminders_active, reminders.count { it.enabled })) },
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
     ) { padding ->
         val is24h = DateFormat.is24HourFormat(LocalContext.current)
@@ -116,7 +120,7 @@ fun RemindersContent(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 160.dp),
             state = gridState,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = LocalNavBarPadding.current + 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),

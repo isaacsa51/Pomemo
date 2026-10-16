@@ -38,6 +38,7 @@ class RingService : Service() {
     private var timeout: Job? = null
     private var lastStartId = 0
     private val nm by lazy { getSystemService(NotificationManager::class.java) }
+    private val torch by lazy { TorchBlinker(this) }
     private val vibrator by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) getSystemService(VibratorManager::class.java).defaultVibrator
         else @Suppress("DEPRECATION") getSystemService(Vibrator::class.java)
@@ -57,6 +58,7 @@ class RingService : Service() {
     private fun show(reminder: Reminder?) {
         if (reminder == null) {
             timeout?.cancel()
+            torch.stop()
             shown = null
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             // Only the latest start: an alarm that fired in the meantime keeps the service alive.
@@ -75,6 +77,8 @@ class RingService : Service() {
             player = startPlayer()
             vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 1000, 1000), 0))
         }
+        // Whatever rings (reminder, end of period, auto-start countdown), the camera flash blinks too.
+        torch.start(scope)
         timeout?.cancel()
         timeout = scope.launch {
             delay(ringer.loadSettings().ringMin * 60_000L)
@@ -97,6 +101,7 @@ class RingService : Service() {
     }
 
     override fun onDestroy() {
+        torch.stop()
         scope.cancel()
         player?.release()
         vibrator.cancel()

@@ -30,5 +30,8 @@ fun googleSansFlex(width: Float = 100f): FontFamily = FontFamily(
 
 val GoogleSansFlex = googleSansFlex()
 
+/** Very condensed cut for big clock digits and compact metadata. */
+val CondensedFlex = googleSansFlex(width = 25f)
+
 /** M3 type scale (sizes, weights, emphasized variants) with Google Sans Flex everywhere. */
 val PomemoTypography = Typography(fontFamily = GoogleSansFlex)

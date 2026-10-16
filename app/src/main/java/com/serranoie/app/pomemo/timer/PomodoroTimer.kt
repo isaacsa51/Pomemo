@@ -47,7 +47,7 @@ data class TimerSettings(
     val shortMin: Int = 5,
     val longMin: Int = 15,
     val sessions: Int = 4,
-    /** Start the next phase on its own and just chime, instead of the full-screen "Continue" alarm. */
+    /** Start the next phase on its own after a short full-screen countdown, instead of waiting on "Continue". */
     val autoStart: Boolean = false,
 ) {
     fun lengthMs(p: Phase) = 60_000L * when (p) {
@@ -113,6 +113,7 @@ class PomodoroTimer @Inject constructor(
 
     fun start() = op { s, set ->
         ringer.stop(RING_ID)
+        scheduler.cancelAutoStart()
         if (s.running) return@op
         val endAt = System.currentTimeMillis() + (s.remainingMs ?: set.lengthMs(s.phase))
         save(s.copy(endAt = endAt, remainingMs = null), set)
@@ -128,12 +129,14 @@ class PomodoroTimer @Inject constructor(
     fun reset() = op { _, set ->
         ringer.stop(RING_ID)
         scheduler.cancelTimer()
+        scheduler.cancelAutoStart()
         save(TimerState(), set)
     }
 
     fun skip() = op { s, set ->
         ringer.stop(RING_ID)
         scheduler.cancelTimer()
+        scheduler.cancelAutoStart()
         val (phase, done) = nextPhase(s.phase, s.done, set.sessions)
         save(TimerState(phase, done), set)
     }
@@ -144,21 +147,15 @@ class PomodoroTimer @Inject constructor(
         val title = context.getString(R.string.phase_done, context.getString(s.phase.label))
         val next = context.getString(phase.label)
         val minutes = (set.lengthMs(phase) / 60_000).toInt()
-        if (set.autoStart) {
-            // Keep going: a plain chime notification instead of the full-screen alarm; "End period" still stops it.
-            val endAt = System.currentTimeMillis() + set.lengthMs(phase)
-            save(TimerState(phase, done, endAt), set)
-            scheduler.setTimer(endAt)
-            ringer.ringTimer(
-                Reminder(id = RING_ID, title = title, note = context.getString(R.string.phase_started, next, minutes), time = LocalTime.now(), ring = false),
-                continueLabel = "",
-            )
-            return@op
-        }
         save(TimerState(phase, done), set)
+        // Auto-start: a short full-screen countdown, then the alarm below starts the phase even if nobody
+        // is looking. "Start now" and "End period" both cancel it.
+        val autoStartAt = if (set.autoStart) System.currentTimeMillis() + AUTO_START_DELAY_MS else null
+        autoStartAt?.let(scheduler::setAutoStart)
         ringer.ringTimer(
             Reminder(id = RING_ID, title = title, note = context.getString(R.string.up_next, next, minutes), time = LocalTime.now()),
             context.getString(R.string.continue_to, next),
+            autoStartAt,
         )
     }
 
@@ -260,6 +257,7 @@ class PomodoroTimer @Inject constructor(
 
     companion object {
         const val RING_ID = -1L
+        const val AUTO_START_DELAY_MS = 5_000L
         private const val NOTIFICATION_ID = -2
         private const val CH_TIMER = "timer_live"
         private const val CH_TIMER_OLD = "timer"

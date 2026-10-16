@@ -42,7 +42,11 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Title
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.material.icons.automirrored.rounded.FormatIndentDecrease
+import androidx.compose.material.icons.automirrored.rounded.FormatIndentIncrease
+import androidx.compose.ui.text.TextRange
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -153,7 +157,7 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
                     Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
                     Text(stringResource(if (preview) R.string.edit else R.string.preview))
                 }
-                if (state.id != 0L) TooltipIconButton(Icons.Rounded.Delete, stringResource(R.string.delete)) { confirmDelete = true }
+                if (state.id != 0L) TooltipIconButton(Icons.Rounded.Delete, stringResource(R.string.delete), contentColor = MaterialTheme.colorScheme.error) { confirmDelete = true }
             }
 
             // The page: editing shows the markdown symbols styled live; preview hides them.
@@ -163,10 +167,11 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
             ) {
                 if (preview) {
-                    val rendered = remember(state.value.text, colors) { highlightMarkdown(state.value.text, colors, rendered = true) }
-                    Text(
-                        rendered,
-                        style = MaterialTheme.typography.bodyLarge,
+                    // Hold a list item to drag it; ticking a box works here too.
+                    NotePreview(
+                        state.value.text,
+                        colors,
+                        onTextChange = { t -> onChange(TextFieldValue(t, TextRange(state.value.selection.start.coerceAtMost(t.length))).renumbered()) },
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
                     )
                 } else {
@@ -202,6 +207,25 @@ fun NoteEditorContent(state: NoteEditorState, onChange: (TextFieldValue) -> Unit
             ) {
                 // One connected pill: rounded outer ends on the first/last button only, small inner corners,
                 // and an active format morphs into a circle. Clipped to a stadium so it scrolls inside the pill.
+                // Nest / un-nest, only while the caret sits on a list item.
+                if (!preview && state.value.isInList()) {
+                    listOf(
+                        Triple(Icons.AutoMirrored.Rounded.FormatIndentDecrease, R.string.outdent, false),
+                        Triple(Icons.AutoMirrored.Rounded.FormatIndentIncrease, R.string.indent, true),
+                    ).forEach { (icon, label, deeper) ->
+                        val text = stringResource(label)
+                        WithTooltip(text) {
+                            FilledTonalIconButton(
+                                onClick = { HapticUtil.performLightHaptic(view); onChange(state.value.indent(deeper)) },
+                                shapes = IconButtonDefaults.shapes(),
+                                modifier = Modifier
+                                    .size(IconButtonDefaults.smallContainerSize())
+                                    .focusProperties { canFocus = false },
+                            ) { Icon(icon, contentDescription = text) }
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
                 Box(Modifier.weight(1f)) {
                     if (!preview) Row(
                         Modifier.clip(CircleShape).horizontalScroll(rememberScrollState()),

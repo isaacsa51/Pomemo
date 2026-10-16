@@ -35,7 +35,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.data.Note
 import com.serranoie.app.pomemo.ui.HapticUtil
+import com.serranoie.app.pomemo.ui.LocalNavBarPadding
+import com.serranoie.app.pomemo.ui.components.ExpressiveHeader
+import com.serranoie.app.pomemo.ui.theme.CondensedFlex
 import com.serranoie.app.pomemo.ui.theme.PomemoTheme
+import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun NotesScreen(vm: NotesViewModel = hiltViewModel()) {
@@ -52,11 +56,13 @@ fun NotesContent(notes: List<Note>, onOpen: (Note) -> Unit, onCheck: (Note, Int)
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            MediumFlexibleTopAppBar(title = { Text(stringResource(R.string.notes_title)) }, scrollBehavior = scrollBehavior)
+            ExpressiveHeader {
+                MediumFlexibleTopAppBar(title = { Text(stringResource(R.string.notes_title)) }, scrollBehavior = scrollBehavior)
+            }
         },
     ) { padding ->
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = LocalNavBarPadding.current + 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().padding(top= 8.dp),
         ) {
@@ -92,10 +98,15 @@ private fun NoteCard(note: Note, colors: MarkdownColors, onCheck: (Int) -> Unit,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(body, style = MaterialTheme.typography.bodyLarge, maxLines = 8, overflow = TextOverflow.Ellipsis)
+            // Last change, bottom-right in the condensed cut: "5 minutes ago", "Yesterday", "Oct 3".
             Text(
-                DateUtils.getRelativeTimeSpanString(note.updatedAt).toString(),
-                style = MaterialTheme.typography.labelMedium,
+                System.currentTimeMillis().let { now ->
+                    if (now - note.updatedAt < DateUtils.MINUTE_IN_MILLIS) stringResource(R.string.just_now)
+                    else DateUtils.getRelativeTimeSpanString(note.updatedAt, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
+                },
+                style = MaterialTheme.typography.labelLarge.copy(fontFamily = CondensedFlex, fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.End),
             )
         }
     }

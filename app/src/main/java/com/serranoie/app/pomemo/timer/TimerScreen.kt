@@ -2,7 +2,13 @@ package com.serranoie.app.pomemo.timer
 
 import androidx.compose.material.icons.rounded.RestartAlt
 import com.serranoie.app.pomemo.ui.HapticUtil
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.serranoie.app.pomemo.ui.LocalNavBarPadding
+import com.serranoie.app.pomemo.ui.components.ExpressiveHeader
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,25 +102,39 @@ fun TimerContent(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    val started = state.running || state.remainingMs != null
-                    if (started) Text(phase, color = color) else Text(stringResource(R.string.timer_title))
-                },
-                actions = { TooltipIconButton(Icons.Rounded.Settings, stringResource(R.string.timer_settings)) { showSettings = true } },
-            )
+            ExpressiveHeader {
+                CenterAlignedTopAppBar(
+                    title = {
+                        val started = state.running || state.remainingMs != null
+                        if (started) Text(phase, color = color) else Text(stringResource(R.string.timer_title))
+                    },
+                    actions = { TooltipIconButton(Icons.Rounded.Settings, stringResource(R.string.timer_settings)) { showSettings = true } },
+                )
+            }
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.fillMaxSize().padding(padding).padding(bottom = LocalNavBarPadding.current).verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
         ) {
             val secs = (remaining + 999) / 1000
             val a11y = stringResource(R.string.timer_left_a11y, phase, (secs / 60).toInt(), (secs % 60).toInt())
             val stroke = with(LocalDensity.current) { Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round) }
+            val view = LocalView.current
+            val settingsLabel = stringResource(R.string.timer_settings)
             Box(
-                Modifier.widthIn(max = 320.dp).fillMaxWidth().aspectRatio(1f).clearAndSetSemantics { contentDescription = a11y },
+                Modifier
+                    .widthIn(max = 320.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(CircleShape)
+                    // Tap the time to adjust it; locked while it runs so a stray tap can't open settings mid-focus.
+                    .clickable(enabled = !state.running, onClickLabel = settingsLabel, role = Role.Button) {
+                        HapticUtil.performUIHaptic(view)
+                        showSettings = true
+                    }
+                    .clearAndSetSemantics { contentDescription = a11y },
                 contentAlignment = Alignment.Center,
             ) {
                 CircularWavyProgressIndicator(
@@ -126,9 +146,16 @@ fun TimerContent(
                     amplitude = { if (state.running) WavyProgressIndicatorDefaults.indicatorAmplitude(it) * 0.85f else 0f },
                     wavelength = 56.dp,
                 )
+                // Heavy while it runs, light while idle, like the reminder tiles' on/off digits.
+                val weight by animateIntAsState(if (state.running) 800 else 400, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "timeWeight")
                 Text(
                     formatMs(remaining),
-                    style = MaterialTheme.typography.displayLargeEmphasized.copy(fontFeatureSettings = "tnum"),
+                    style = MaterialTheme.typography.displayLargeEmphasized.copy(
+                        fontSize = 80.sp,
+                        lineHeight = 80.sp,
+                        fontWeight = FontWeight(weight),
+                        fontFeatureSettings = "tnum",
+                    ),
                 )
             }
 

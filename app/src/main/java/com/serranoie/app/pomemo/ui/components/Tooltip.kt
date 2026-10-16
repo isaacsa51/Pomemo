@@ -20,6 +20,8 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,6 +50,8 @@ fun TooltipIconButton(
     filled: Boolean = false,
     tonal: Boolean = false,
     enabled: Boolean = true,
+    /** Icon colour for the plain (unfilled) button, e.g. error for destructive actions. */
+    contentColor: Color = Color.Unspecified,
     haptic: (View) -> Unit = HapticUtil::performUIHaptic,
     onClick: () -> Unit,
 ) = WithTooltip(label) {
@@ -58,7 +62,11 @@ fun TooltipIconButton(
     when {
         filled -> FilledIconButton(tap, IconButtonDefaults.shapes(), m, enabled, content = content)
         tonal -> FilledTonalIconButton(tap, IconButtonDefaults.shapes(), m, enabled, content = content)
-        else -> IconButton(tap, IconButtonDefaults.shapes(), m, enabled, content = content)
+        else -> IconButton(
+            tap, IconButtonDefaults.shapes(), m, enabled,
+            colors = if (contentColor.isSpecified) IconButtonDefaults.iconButtonColors(contentColor = contentColor) else IconButtonDefaults.iconButtonColors(),
+            content = content,
+        )
     }
 }
 

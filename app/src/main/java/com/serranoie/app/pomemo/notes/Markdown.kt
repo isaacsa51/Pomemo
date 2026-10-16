@@ -271,37 +271,161 @@ fun TextFieldValue.toggle(f: InlineFormat): TextFieldValue {
     return copy(text = text.replaceRange(s, e, m + selected + m), selection = TextRange(s + m.length, e + m.length))
 }
 
+private val LIST_FORMATS = setOf(LineFormat.BULLET, LineFormat.NUMBERED, LineFormat.CHECKLIST)
+
+private fun String.indentOf() = takeWhile { it == ' ' || it == '\t' }
+
 fun TextFieldValue.isActive(f: LineFormat): Boolean {
     val start = text.lineStart(selection.min)
-    return f.prefixOf(text.substring(start, text.lineEnd(start))) != null
+    return f.prefixOf(text.substring(start, text.lineEnd(start)).trimStart(' ', '\t')) != null
 }
+
+/** A text replacement at [start]: [oldLen] characters became [newLen]. Edits are listed in text order. */
+private data class Splice(val start: Int, val oldLen: Int, val newLen: Int)
+
+/** Where offset [p] lands after [splices]; a caret inside a replaced span goes to its end. */
+private fun remap(splices: List<Splice>, p: Int): Int {
+    var delta = 0
+    for ((start, oldLen, newLen) in splices) {
+        if (p < start) break
+        if (p <= start + oldLen) return start + delta + newLen
+        delta += newLen - oldLen
+    }
+    return p + delta
+}
+
+private fun TextFieldValue.spliced(text: String, splices: List<Splice>) =
+    TextFieldValue(text, TextRange(remap(splices, selection.start), remap(splices, selection.end)))
 
 fun TextFieldValue.toggle(f: LineFormat): TextFieldValue {
     val turnOff = isActive(f)
     val first = text.lineStart(selection.min)
     val last = text.lineEnd(selection.max)
-    // (old line start, old prefix length, new prefix length) for each touched line, in order.
-    val edits = mutableListOf<Triple<Int, Int, Int>>()
+    val splices = mutableListOf<Splice>()
     val out = StringBuilder(text.substring(0, first))
     var lineStart = first
     for (line in text.substring(first, last).split('\n')) {
-        val old = LineFormat.entries.firstNotNullOfOrNull { it.prefixOf(line) } ?: ""
+        // Nested list items keep their indent; a heading or quote starts at the margin.
+        val indent = if (turnOff || f in LIST_FORMATS) line.indentOf() else ""
+        val body = line.substring(indent.length)
+        val old = LineFormat.entries.firstNotNullOfOrNull { it.prefixOf(body) } ?: ""
         val new = if (turnOff) "" else f.prefix
-        out.append(new).append(line.substring(old.length)).append('\n')
-        edits += Triple(lineStart, old.length, new.length)
+        out.append(indent).append(new).append(body.substring(old.length)).append('\n')
+        splices += Splice(lineStart + indent.length, old.length, new.length)
         lineStart += line.length + 1
     }
     out.setLength(out.length - 1)
     out.append(text.substring(last))
+    return spliced(out.toString(), splices).renumbered()
+}
 
-    fun map(p: Int): Int {
-        var delta = 0
-        for ((start, oldLen, newLen) in edits) {
-            if (p < start) break
-            if (p <= start + oldLen) return start + delta + newLen // caret was in the prefix: put it after the new one
-            delta += newLen - oldLen
-        }
-        return p + delta
+// ---------------------------------------------------------------------------------------------
+// Lists: Enter continues them, indent nests them, numbers stay in sequence.
+// ---------------------------------------------------------------------------------------------
+
+/** indent, bullet, number, number delimiter, checkbox. */
+private val LIST_ITEM = Regex("""^([ \t]*)(?:([-*+])|(\d+)([.)]))[ \t](\[[ xX]][ \t])?""")
+private const val INDENT = "    "
+
+fun isListLine(line: String) = LIST_ITEM.containsMatchIn(line)
+
+fun TextFieldValue.isInList(): Boolean = isListLine(text.substring(text.lineStart(selection.min), text.lineEnd(selection.min)))
+
+/**
+ * If [new] is [old] with Enter pressed on a list item, returns the edit with the list continued:
+ * the next bullet, number or empty checkbox at the same indent. Enter on an empty item ends the
+ * list instead (its marker is removed). Null when Enter wasn't pressed in a list.
+ */
+fun continueList(old: TextFieldValue, new: TextFieldValue): TextFieldValue? {
+    val s = old.selection.min
+    val caret = s + 1
+    if (!new.selection.collapsed || new.selection.start != caret) return null
+    if (new.text.length != old.text.length - old.selection.length + 1 || new.text.getOrNull(s) != '\n') return null
+    if (!new.text.regionMatches(0, old.text, 0, s) || !new.text.regionMatches(caret, old.text, old.selection.max, old.text.length - old.selection.max)) return null
+
+    val lineStart = old.text.lineStart(s)
+    val m = LIST_ITEM.find(old.text.substring(lineStart, s)) ?: return null
+    val lineEnd = old.text.lineEnd(old.selection.max)
+    val content = old.text.substring(lineStart + m.value.length, s) + old.text.substring(old.selection.max, lineEnd)
+    if (content.isBlank()) {
+        // Second Enter on an empty item: drop the marker and stay on the now-empty line.
+        val t = old.text.removeRange(lineStart, lineEnd)
+        return TextFieldValue(t, TextRange(lineStart)).renumbered()
     }
-    return copy(text = out.toString(), selection = TextRange(map(selection.start), map(selection.end)))
+    val (_, indent, bullet, number, delim) = m.groupValues
+    val checkbox = if (m.groupValues[5].isNotEmpty()) "[ ] " else ""
+    val prefix = indent + (if (bullet.isNotEmpty()) "$bullet " else "${number.toInt() + 1}$delim ") + checkbox
+    val t = new.text.substring(0, caret) + prefix + new.text.substring(caret)
+    return TextFieldValue(t, TextRange(caret + prefix.length)).renumbered()
+}
+
+/**
+ * After reordering list lines, the list still starts where it did: the new first item takes the old
+ * first item's number (renumbering then counts on from it). Only applies when both are numbered.
+ */
+fun keepListStart(before: List<String>, after: List<String>): List<String> {
+    val start = before.firstOrNull()?.let { LIST_ITEM.find(it)?.groups?.get(3) } ?: return after
+    val first = after.firstOrNull()?.let { LIST_ITEM.find(it)?.groups?.get(3) } ?: return after
+    return listOf(after[0].replaceRange(first.range, start.value)) + after.drop(1)
+}
+
+/** Nests ([deeper]) or un-nests every selected list line by one level, then renumbers. */
+fun TextFieldValue.indent(deeper: Boolean): TextFieldValue {
+    val first = text.lineStart(selection.min)
+    val last = text.lineEnd(selection.max)
+    val splices = mutableListOf<Splice>()
+    val out = StringBuilder(text.substring(0, first))
+    var lineStart = first
+    for (line in text.substring(first, last).split('\n')) {
+        val change = when {
+            !isListLine(line) -> 0
+            deeper -> INDENT.length
+            line.startsWith('\t') -> -1
+            else -> -line.indentOf().length.coerceAtMost(INDENT.length)
+        }
+        if (change > 0) out.append(INDENT).append(line) else out.append(line.substring(-change))
+        if (change != 0) splices += Splice(lineStart, maxOf(-change, 0), maxOf(change, 0))
+        out.append('\n')
+        lineStart += line.length + 1
+    }
+    out.setLength(out.length - 1)
+    out.append(text.substring(last))
+    return spliced(out.toString(), splices).renumbered()
+}
+
+/**
+ * Keeps every numbered list counting up: each run (per indent level) counts on from its first
+ * item's number (from 1 when nested). A line that isn't a list item ends all runs; fenced code is left alone.
+ */
+fun TextFieldValue.renumbered(): TextFieldValue {
+    val splices = mutableListOf<Splice>()
+    val out = StringBuilder()
+    val counters = sortedMapOf<Int, Int>() // indent width → last number at that level
+    var inFence = false
+    var lineStart = 0
+    for ((i, line) in text.split('\n').withIndex()) {
+        if (i > 0) out.append('\n')
+        val m = if (inFence) null else LIST_ITEM.find(line)
+        when {
+            FENCE.containsMatchIn(line) -> { inFence = !inFence; counters.clear(); out.append(line) }
+            m == null -> { counters.clear(); out.append(line) }
+            else -> {
+                val level = m.groupValues[1].replace("\t", INDENT).length
+                counters.keys.retainAll { it <= level }
+                val number = m.groups[3]
+                if (number == null) {
+                    counters.remove(level)
+                    out.append(line)
+                } else {
+                    // A top-level list may start anywhere ("5."); a nested one counts from 1.
+                    val n = counters[level]?.plus(1) ?: if (level > 0) 1 else number.value.toInt()
+                    counters[level] = n
+                    out.append(line, 0, number.range.first).append(n).append(line, number.range.last + 1, line.length)
+                    if (n.toString() != number.value) splices += Splice(lineStart + number.range.first, number.value.length, n.toString().length)
+                }
+            }
+        }
+        lineStart += line.length + 1
+    }
+    return if (splices.isEmpty()) this else spliced(out.toString(), splices)
 }

@@ -11,11 +11,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,6 +94,12 @@ fun AppScreen(
 
 private const val PAGES = 3
 
+/**
+ * Height of the floating nav bar. Screens draw behind it (it floats), so scrolling content adds
+ * this as bottom padding instead of being clipped at the bar's top edge.
+ */
+val LocalNavBarPadding = compositionLocalOf { 0.dp }
+
 /** Stateless shell: floating nav bar + content. */
 @Composable
 fun AppScaffold(selected: Int, phase: Phase, fab: NavFab?, onSelect: (Int) -> Unit, content: @Composable () -> Unit) = Scaffold(
@@ -99,7 +107,10 @@ fun AppScaffold(selected: Int, phase: Phase, fab: NavFab?, onSelect: (Int) -> Un
     contentWindowInsets = WindowInsets(0),
     bottomBar = { FloatingNavBar(selected, phase, fab, onSelect) },
 ) { padding ->
-    Box(Modifier.padding(padding).consumeWindowInsets(padding)) { content() }
+    // Not padded: the bar floats over the content, and each screen pads its scroll content by LocalNavBarPadding.
+    CompositionLocalProvider(LocalNavBarPadding provides padding.calculateBottomPadding()) {
+        Box(Modifier.consumeWindowInsets(padding)) { content() }
+    }
 }
 
 @Preview(showSystemUi = true)

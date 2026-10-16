@@ -1,6 +1,20 @@
 package com.serranoie.app.pomemo.alarm
 
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.flowOf
 import com.serranoie.app.pomemo.notes.toggleCheckbox
 import com.serranoie.app.pomemo.data.NoteDao
@@ -91,7 +105,19 @@ class AlarmActivity : ComponentActivity() {
             LaunchedEffect(reminder) { if (reminder == null) finishAndRemoveTask() }
             PomemoTheme {
                 reminder?.let { r ->
-                    if (r.id == PomodoroTimer.RING_ID) {
+                    val autoStartAt = ringer.autoStartAt
+                    if (r.id == PomodoroTimer.RING_ID && autoStartAt != null) {
+                        // Auto-start: count down and start the next phase; the scheduled alarm does the same if this screen isn't up.
+                        val timerState by timer.state.collectAsStateWithLifecycle()
+                        PhaseCountdownScreen(
+                            title = r.title,
+                            next = stringResource(timerState.phase.label),
+                            startAt = autoStartAt,
+                            onFinished = { timer.start() },
+                            primary = AlarmAction(stringResource(R.string.start_now), Icons.Rounded.PlayArrow, HapticUtil::performConfirmHaptic) { timer.start() },
+                            secondary = AlarmAction(stringResource(R.string.end_period), Icons.Rounded.Stop, HapticUtil::performRejectHaptic) { timer.reset() },
+                        )
+                    } else if (r.id == PomodoroTimer.RING_ID) {
                         // Phase end: go on to the next phase, or stop the pomodoro. Both stop the ring.
                         AlarmScreen(
                             reminder = r,
@@ -126,7 +152,6 @@ data class AlarmAction(val label: String, val icon: ImageVector, val haptic: (Vi
 @Composable
 fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction, attached: Note? = null, onCheck: (Int) -> Unit = {}) {
     val pane = stringResource(R.string.alarm_pane)
-    val view = LocalView.current
     Surface(
         Modifier.fillMaxSize().semantics { paneTitle = pane },
         color = MaterialTheme.colorScheme.primaryContainer,
@@ -171,22 +196,85 @@ fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction
                     }
                 }
             }
-            val height = ButtonDefaults.LargeContainerHeight
-            Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = { primary.haptic(view); primary.onClick() },
-                    shapes = ButtonDefaults.shapes(),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = height),
-                    contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
-                ) { ButtonContent(primary.icon, primary.label) }
-                FilledTonalButton(
-                    onClick = { secondary.haptic(view); secondary.onClick() },
-                    shapes = ButtonDefaults.shapes(),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = height),
-                    contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
-                ) { ButtonContent(secondary.icon, secondary.label) }
-            }
+            AlarmButtons(primary, secondary)
         }
+    }
+}
+
+/**
+ * Auto-start hand-off between phases: the screen flashes (once a second, well under the 3 Hz
+ * photosensitivity limit) and counts down to [startAt], then calls [onFinished].
+ */
+@Composable
+fun PhaseCountdownScreen(title: String, next: String, startAt: Long, onFinished: () -> Unit, primary: AlarmAction, secondary: AlarmAction) {
+    val pane = stringResource(R.string.alarm_pane)
+    var left by remember(startAt) { mutableIntStateOf(secondsUntil(startAt)) }
+    LaunchedEffect(startAt) {
+        while (left > 0) {
+            delay(100)
+            left = secondsUntil(startAt)
+        }
+        onFinished()
+    }
+    val cs = MaterialTheme.colorScheme
+    val flash by rememberInfiniteTransition(label = "flash").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
+        label = "flashFraction",
+    )
+    Surface(
+        Modifier.fillMaxSize().semantics { paneTitle = pane },
+        color = lerp(cs.primaryContainer, Color.White, flash),
+        contentColor = lerp(cs.onPrimaryContainer, Color.Black, flash),
+    ) {
+        Column(
+            Modifier.safeDrawingPadding().padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleLargeEmphasized, textAlign = TextAlign.Center)
+                Text(
+                    stringResource(R.string.starts_in, next),
+                    style = MaterialTheme.typography.headlineMediumEmphasized,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Text(
+                    "$left",
+                    style = MaterialTheme.typography.displayLargeEmphasized.copy(fontSize = 160.sp, lineHeight = 160.sp, fontWeight = FontWeight.Black),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+            AlarmButtons(primary, secondary)
+        }
+    }
+}
+
+private fun secondsUntil(at: Long) = ((at - System.currentTimeMillis() + 999) / 1000).toInt().coerceAtLeast(0)
+
+/** Full-width, Large-size buttons at the bottom so they stay in thumb reach and never truncate at big font scales. */
+@Composable
+private fun AlarmButtons(primary: AlarmAction, secondary: AlarmAction) {
+    val view = LocalView.current
+    val height = ButtonDefaults.LargeContainerHeight
+    Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(
+            onClick = { primary.haptic(view); primary.onClick() },
+            shapes = ButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = height),
+            contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
+        ) { ButtonContent(primary.icon, primary.label) }
+        FilledTonalButton(
+            onClick = { secondary.haptic(view); secondary.onClick() },
+            shapes = ButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = height),
+            contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
+        ) { ButtonContent(secondary.icon, secondary.label) }
     }
 }
 
@@ -206,6 +294,19 @@ private fun AlarmScreenPreview() = PomemoTheme {
         AlarmAction("Dismiss", Icons.Rounded.AlarmOff, {}) {},
         AlarmAction("Snooze", Icons.Rounded.Snooze, {}) {},
         attached = Note(1, "### Before bed\n- [x] pills\n- [ ] alarm for 7:00", 0),
+    )
+}
+
+@PreviewLightDark
+@Composable
+private fun PhaseCountdownPreview() = PomemoTheme {
+    PhaseCountdownScreen(
+        title = "Focus done",
+        next = "Short break",
+        startAt = System.currentTimeMillis() + 5_000,
+        onFinished = {},
+        primary = AlarmAction("Start now", Icons.Rounded.PlayArrow, {}) {},
+        secondary = AlarmAction("End period", Icons.Rounded.Stop, {}) {},
     )
 }
 

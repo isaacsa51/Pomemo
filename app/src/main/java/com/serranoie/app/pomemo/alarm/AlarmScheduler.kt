@@ -34,6 +34,11 @@ class AlarmScheduler @Inject constructor(@ApplicationContext private val context
 
     fun cancelTimer() = alarmManager.cancel(timerIntent())
 
+    /** Auto-start: starts the next phase when the full-screen countdown runs out. */
+    fun setAutoStart(epochMillis: Long) = setAt(epochMillis, autoStartIntent())
+
+    fun cancelAutoStart() = alarmManager.cancel(autoStartIntent())
+
     /** Repost of the live notification's progress bar; exact so the bar moves on the minute. */
     fun setTimerTick(epochMillis: Long) = setAt(epochMillis, tickIntent())
 
@@ -59,6 +64,8 @@ class AlarmScheduler @Inject constructor(@ApplicationContext private val context
         AlarmReceiver.broadcast(context, AlarmReceiver.ACTION_FIRE, "pomemo://${if (snooze) "snooze" else "fire"}/$id")
 
     private fun tickIntent() = AlarmReceiver.broadcast(context, AlarmReceiver.ACTION_TIMER_TICK, "pomemo://timer/tick")
+
+    private fun autoStartIntent() = AlarmReceiver.broadcast(context, AlarmReceiver.ACTION_TIMER_START, "pomemo://timer/auto")
 
     private fun timerIntent() = AlarmReceiver.broadcast(context, AlarmReceiver.ACTION_TIMER_END, "pomemo://timer")
 }

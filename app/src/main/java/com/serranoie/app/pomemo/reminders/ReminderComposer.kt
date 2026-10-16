@@ -59,7 +59,6 @@ import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
@@ -71,9 +70,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
@@ -82,7 +84,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -239,23 +240,26 @@ fun ReminderComposerContent(
             }
         }
 
-        Section(stringResource(R.string.ring_as)) {
-            Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-                listOf(
-                    Triple(true, R.string.kind_alarm, Icons.Rounded.Alarm),
-                    Triple(false, R.string.kind_notification, Icons.Rounded.Notifications),
-                ).forEachIndexed { i, (ring, label, icon) ->
-                    ToggleButton(
-                        checked = composer.ring == ring,
-                        onCheckedChange = { HapticUtil.performLightHaptic(view); onUpdate { copy(ring = ring) } },
-                        modifier = Modifier.weight(1f).semantics { role = Role.RadioButton },
-                        shapes = connectedShapes(i, 2),
-                    ) { IconLabel(icon, stringResource(label)) }
+        // One line: off = a plain notification. The whole row is the switch.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .toggleable(composer.ring, role = Role.Switch) { on ->
+                    HapticUtil.performLightHaptic(view)
+                    onUpdate { copy(ring = on) }
                 }
-            }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(if (composer.ring) Icons.Rounded.Alarm else Icons.Rounded.Notifications, contentDescription = null)
+            Spacer(Modifier.width(16.dp))
+            Text(stringResource(R.string.kind_alarm), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Switch(checked = composer.ring, onCheckedChange = null)
         }
 
-        OutlinedTextField(
+        // The attached note below covers the details; a free-text note only stays for reminders that already have one.
+        if (composer.note.isNotBlank()) OutlinedTextField(
             value = composer.note,
             onValueChange = { n -> onUpdate { copy(note = n) } },
             label = { Text(stringResource(R.string.note_label)) },
@@ -308,13 +312,6 @@ private fun connectedShapes(index: Int, count: Int) = when (index) {
     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
     count - 1 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-}
-
-@Composable
-private fun IconLabel(icon: ImageVector, label: String) {
-    Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-    Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
-    Text(label)
 }
 
 /** Pick one note (radio list); "Remove note" detaches the current one. */

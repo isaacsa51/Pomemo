@@ -61,7 +61,6 @@
     <string name="date">Date</string>
     <string name="pick_time">Pick a time</string>
     <string name="repeat_on">Repeat on</string>
-    <string name="ring_as">Ring as</string>
     <string name="note_label">Note (optional)</string>
     <string name="add_time_to_save">Add a time to save</string>
     <string name="summary">%1$s · %2$s at %3$s</string>
@@ -110,9 +109,8 @@
     <string name="format_checklist">Checklist</string>
     <string name="preview">Preview</string>
     <string name="missed">Missed: %1$s</string>
-    <string name="phase_started">%1$s started · %2$d min</string>
     <string name="auto_start">Start next phase automatically</string>
-    <string name="auto_start_summary">Chime instead of the full-screen alarm</string>
+    <string name="auto_start_summary">Full-screen 5-second countdown, then the next phase starts on its own</string>
     <string name="snooze_length">Snooze length</string>
     <string name="ring_length">Ring for</string>
     <string name="skip_today">Skip today</string>
@@ -123,4 +121,11 @@
     <string name="choose_note">Choose a note</string>
     <string name="detach_note">Remove note</string>
     <string name="no_notes">No notes yet. Create one in the Notes tab.</string>
+    <string name="start_now">Start now</string>
+    <string name="starts_in">%1$s starts in</string>
+    <string name="indent">Indent</string>
+    <string name="outdent">Outdent</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="just_now">Just now</string>
 </resources>

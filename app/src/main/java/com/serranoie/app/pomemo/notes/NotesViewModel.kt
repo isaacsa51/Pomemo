@@ -37,7 +37,8 @@ class NotesViewModel @Inject constructor(private val dao: NoteDao) : ViewModel()
         dao.upsert(note.copy(body = toggleCheckbox(note.body, bracket)))
     }
 
-    fun update(value: TextFieldValue) = _editor.update { it?.copy(value = value) }
+    /** Every keystroke; Enter on a list item continues the list. */
+    fun update(value: TextFieldValue) = _editor.update { it?.copy(value = continueList(it.value, value) ?: value) }
 
     /**
      * Save and close. Leaving never loses text (back, ✕ and Save all come here). An empty new note is

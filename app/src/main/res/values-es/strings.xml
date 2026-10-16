@@ -62,7 +62,6 @@
     <string name="date">Fecha</string>
     <string name="pick_time">Elegir hora</string>
     <string name="repeat_on">Repetir los</string>
-    <string name="ring_as">Avisar con</string>
     <string name="note_label">Nota (opcional)</string>
     <string name="add_time_to_save">Añade una hora para guardar</string>
     <string name="summary">%1$s · %2$s a las %3$s</string>
@@ -110,9 +109,8 @@
     <string name="format_checklist">Lista de tareas</string>
     <string name="preview">Vista previa</string>
     <string name="missed">Sin atender: %1$s</string>
-    <string name="phase_started">Empezó: %1$s · %2$d min</string>
     <string name="auto_start">Iniciar la siguiente fase automáticamente</string>
-    <string name="auto_start_summary">Un aviso breve en lugar de la alarma a pantalla completa</string>
+    <string name="auto_start_summary">Cuenta regresiva de 5 segundos a pantalla completa y la siguiente fase empieza sola</string>
     <string name="snooze_length">Duración de posponer</string>
     <string name="ring_length">Sonar durante</string>
     <string name="skip_today">Saltar hoy</string>
@@ -123,4 +121,11 @@
     <string name="choose_note">Elige una nota</string>
     <string name="detach_note">Quitar nota</string>
     <string name="no_notes">Aún no hay notas. Crea una en la pestaña Notas.</string>
+    <string name="start_now">Empezar ya</string>
+    <string name="starts_in">%1$s empieza en</string>
+    <string name="indent">Aumentar sangría</string>
+    <string name="outdent">Reducir sangría</string>
+    <string name="move_up">Subir</string>
+    <string name="move_down">Bajar</string>
+    <string name="just_now">Justo ahora</string>
 </resources>

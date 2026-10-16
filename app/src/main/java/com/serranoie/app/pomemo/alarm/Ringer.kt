@@ -68,9 +68,19 @@ class Ringer @Inject constructor(
     var continueLabel: String = ""
         private set
 
-    fun ringTimer(reminder: Reminder, continueLabel: String) {
+    /** When set, the timer starts the next phase on its own at this time; AlarmActivity counts down to it. */
+    @Volatile var autoStartAt: Long? = null
+        private set
+
+    fun ringTimer(reminder: Reminder, continueLabel: String, autoStartAt: Long? = null) {
         this.continueLabel = continueLabel
+        this.autoStartAt = autoStartAt
         ring(reminder)
+        // The full-screen intent only takes over a locked or off screen; with the app open, show the countdown too.
+        // Android drops this silently when the app is in the background, leaving the heads-up notification.
+        if (autoStartAt != null) runCatching {
+            context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     @Synchronized

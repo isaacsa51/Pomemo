@@ -61,12 +61,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.data.Reminder
-import com.serranoie.app.pomemo.ui.theme.googleSansFlex
+import com.serranoie.app.pomemo.ui.theme.CondensedFlex
 import java.time.format.DateTimeFormatter
+import java.time.DayOfWeek
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextDecoration
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-private val CondensedFlex = googleSansFlex(width = 25f)
 
 /**
  * Alarm-clock tile: tall condensed hour, minutes stacked over AM/PM beside it. Heavy and on
@@ -168,33 +174,36 @@ fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Bo
                     }
                 }
             }
+            Spacer(Modifier.height(6.dp))
             Text(
                 r.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMediumEmphasized,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                describeSchedule(r.days, r.date).let { if (skipped) stringResource(R.string.schedule_skipped, it) else it },
-                style = MaterialTheme.typography.labelMedium,
+            Spacer(Modifier.height(4.dp))
+            val schedule = describeSchedule(r.days, r.date).let { if (skipped) stringResource(R.string.schedule_skipped, it) else it }
+            if (r.days != 0) DayLetters(r.days, skipToday = if (skipped) today.dayOfWeek else null, description = schedule)
+            else Text(
+                schedule,
+                style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    if (r.ring) Icons.Rounded.Alarm else Icons.Rounded.Notifications,
-                    contentDescription = kind,
-                    modifier = Modifier
-                        .padding(start = 4.dp)
-                        .size(20.dp),
-                )
+                // Small tonal badges: how it rings, and whether a note opens with it.
+                Badge(if (r.ring) Icons.Rounded.Alarm else Icons.Rounded.Notifications, kind, content)
+                if (r.noteId != null) {
+                    Spacer(Modifier.width(4.dp))
+                    Badge(Icons.Rounded.Description, stringResource(R.string.attached_note), content)
+                }
+                Spacer(Modifier.weight(1f))
                 Switch(
                     r.enabled,
                     { on ->
@@ -218,6 +227,34 @@ fun ReminderTile(r: Reminder, is24h: Boolean, onClick: () -> Unit, onToggle: (Bo
         }
     }
 }
+
+/** M T W T F S S, the repeat days full strength and the rest faded; today's letter struck through when skipped. */
+@Composable
+private fun DayLetters(days: Int, skipToday: DayOfWeek?, description: String) {
+    val locale = LocalConfiguration.current.locales[0]
+    Row(
+        Modifier.clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        DayOfWeek.entries.forEach { day ->
+            val on = days and day.bit() != 0
+            Text(
+                day.getDisplayName(java.time.format.TextStyle.NARROW, locale),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Normal,
+                    textDecoration = if (day == skipToday) TextDecoration.LineThrough else null,
+                ),
+                modifier = Modifier.alpha(if (on) 1f else 0.4f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun Badge(icon: ImageVector, label: String, tint: Color) = Box(
+    Modifier.size(28.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)),
+    contentAlignment = Alignment.Center,
+) { Icon(icon, contentDescription = label, modifier = Modifier.size(16.dp)) }
 
 private fun Modifier.cropToBaseline() = layout { measurable, constraints ->
     val p = measurable.measure(constraints)
