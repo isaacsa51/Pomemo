@@ -4,6 +4,7 @@ import com.serranoie.app.pomemo.notes.NotesViewModel
 import com.serranoie.app.pomemo.notes.NotesScreen
 import com.serranoie.app.pomemo.ui.navigation.NavFab
 import com.serranoie.app.pomemo.reminders.RemindersViewModel
+import com.serranoie.app.pomemo.MainActivity
 import com.serranoie.app.pomemo.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.Add
@@ -48,6 +49,8 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun AppScreen(
+    action: String? = null,
+    onActionHandled: () -> Unit = {},
     timer: TimerViewModel = hiltViewModel(),
     reminders: RemindersViewModel = hiltViewModel(),
     notes: NotesViewModel = hiltViewModel(),
@@ -62,6 +65,15 @@ fun AppScreen(
         snapshotFlow { pager.settledPage }.drop(1).collect {
             if (tapped) tapped = false else HapticUtil.performLightHaptic(view)
         }
+    }
+
+    // Quick Settings "New note": jump to Notes with the editor open on an empty note.
+    LaunchedEffect(action) {
+        if (action == MainActivity.ACTION_NEW_NOTE) {
+            pager.scrollToPage(2)
+            notes.newNote()
+        }
+        if (action != null) onActionHandled()
     }
 
     // The toolbar's "+" follows the page; the timer keeps its controls on screen instead.

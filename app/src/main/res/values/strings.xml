@@ -128,4 +128,9 @@
     <string name="move_up">Move up</string>
     <string name="move_down">Move down</string>
     <string name="just_now">Just now</string>
+    <string name="tile_focus">Focus</string>
+    <string name="tile_focus_subtitle">Start pomodoro</string>
+    <string name="tile_reminder_subtitle">What for and when?</string>
+    <string name="reminder_saved_toast">%1$s - %2$s %3$s</string>
+    <string name="tile_focus_running">%1$s · %2$d min</string>
 </resources>

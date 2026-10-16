@@ -1,8 +1,9 @@
 package com.serranoie.app.pomemo.reminders
 
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.stringResource
 import com.serranoie.app.pomemo.R
 import com.serranoie.app.pomemo.data.Reminder
 import java.time.DayOfWeek
@@ -42,15 +43,21 @@ fun upcomingDate(date: LocalDate?, time: LocalTime, now: LocalDateTime = LocalDa
 /** "Every day" / "Todos los días", "Mon, Wed, Fri" / "lun, mié, vie", "Tomorrow" / "Mañana", "Oct 16, 2026". */
 @Composable
 fun describeSchedule(days: Int, date: LocalDate?, today: LocalDate = LocalDate.now()): String {
-    val locale = LocalConfiguration.current.locales[0]
+    LocalConfiguration.current // re-read on locale change
+    return describeSchedule(LocalContext.current, days, date, today)
+}
+
+/** Same as the composable, for places outside composition (toasts, notifications). */
+fun describeSchedule(context: Context, days: Int, date: LocalDate?, today: LocalDate = LocalDate.now()): String {
+    val locale = context.resources.configuration.locales[0]
     return when {
-        days == ALL_DAYS -> stringResource(R.string.schedule_every_day)
-        days == WEEKDAYS -> stringResource(R.string.schedule_weekdays)
-        days == WEEKENDS -> stringResource(R.string.schedule_weekends)
+        days == ALL_DAYS -> context.getString(R.string.schedule_every_day)
+        days == WEEKDAYS -> context.getString(R.string.schedule_weekdays)
+        days == WEEKENDS -> context.getString(R.string.schedule_weekends)
         days != 0 -> DayOfWeek.entries.filter { days and it.bit() != 0 }
             .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, locale) }
-        date == null || date == today -> stringResource(R.string.schedule_today)
-        date == today.plusDays(1) -> stringResource(R.string.schedule_tomorrow)
+        date == null || date == today -> context.getString(R.string.schedule_today)
+        date == today.plusDays(1) -> context.getString(R.string.schedule_tomorrow)
         else -> date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
     }
 }

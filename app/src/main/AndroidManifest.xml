@@ -48,6 +48,49 @@
             android:turnScreenOn="true"
             tools:targetApi="27" />
 
+        <activity
+            android:name=".tiles.QuickReminderActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Pomemo.Translucent"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Quick Settings tiles -->
+        <service
+            android:name=".tiles.FocusTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_focus"
+            android:label="@string/tile_focus"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.NewNoteTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_note"
+            android:label="@string/new_note"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.ReminderTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_reminder"
+            android:label="@string/default_title"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".alarm.RingService"
             android:exported="false"

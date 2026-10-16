@@ -74,7 +74,8 @@ class RemindersViewModel @Inject constructor(
 
     fun updateComposer(change: Composer.() -> Composer) = _composer.update { it?.change() }
 
-    fun save() {
+    /** [onSaved] runs once the reminder is stored and scheduled, with its real id. */
+    fun save(onSaved: (Reminder) -> Unit = {}) {
         val c = _composer.value ?: return
         val d = c.draft()
         val time = d.time ?: return
@@ -94,7 +95,9 @@ class RemindersViewModel @Inject constructor(
         viewModelScope.launch {
             val id = dao.upsert(reminder)
             // Upsert returns -1 when it updated an existing row.
-            scheduler.schedule(reminder.copy(id = if (id == -1L) reminder.id else id))
+            val saved = reminder.copy(id = if (id == -1L) reminder.id else id)
+            scheduler.schedule(saved)
+            onSaved(saved)
         }
     }
 
