@@ -3,6 +3,25 @@ package com.serranoie.app.pomemo.timer
 import androidx.compose.material.icons.rounded.RestartAlt
 import com.serranoie.app.pomemo.ui.HapticUtil
 import androidx.compose.animation.core.animateIntAsState
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.serranoie.app.pomemo.data.Note
+import com.serranoie.app.pomemo.notes.highlightMarkdown
+import com.serranoie.app.pomemo.notes.rememberMarkdownColors
+import com.serranoie.app.pomemo.reminders.NoteDialog
+import java.time.LocalDate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
@@ -80,7 +99,21 @@ fun TimerScreen(vm: TimerViewModel = hiltViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val remaining by vm.remainingMs.collectAsStateWithLifecycle()
     val alarm by vm.alarmSettings.collectAsStateWithLifecycle()
-    TimerContent(state, settings, remaining, vm::toggle, vm::skip, vm::reset, vm::updateSettings, alarm, vm::updateAlarmSettings)
+    val focusNote by vm.focusNote.collectAsStateWithLifecycle()
+    val notes by vm.notes.collectAsStateWithLifecycle()
+    // Backups go through the system file picker: the user chooses where the file lives.
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(vm::exportTo) }
+    val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::importFrom) }
+    TimerContent(
+        state, settings, remaining, vm::toggle, vm::skip, vm::reset, vm::updateSettings, alarm, vm::updateAlarmSettings,
+        focusNote = focusNote,
+        notes = notes,
+        onAttachNote = vm::attachNote,
+        onCheck = { n, i -> vm.check(n, i) },
+        canControlDnd = vm::canControlDnd,
+        onExport = { export.launch("pomemo-backup-${LocalDate.now()}.json") },
+        onImport = { import.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+    )
 }
 
 @Composable
@@ -94,8 +127,16 @@ fun TimerContent(
     onSettingsChange: (TimerSettings) -> Unit,
     alarm: AlarmSettings = AlarmSettings(),
     onAlarmChange: (AlarmSettings) -> Unit = {},
+    focusNote: Note? = null,
+    notes: List<Note> = emptyList(),
+    onAttachNote: (Long?) -> Unit = {},
+    onCheck: (Note, Int) -> Unit = { _, _ -> },
+    canControlDnd: () -> Boolean = { true },
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var pickNote by rememberSaveable { mutableStateOf(false) }
     val total = settings.lengthMs(state.phase)
     val color = if (state.phase == Phase.FOCUS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
     val phase = stringResource(state.phase.label)
@@ -187,12 +228,49 @@ fun TimerContent(
                 )
                 TooltipIconButton(Icons.Rounded.SkipNext, stringResource(R.string.skip), medium, IconButtonDefaults.mediumIconSize, tonal = true, onClick = onSkip)
             }
+
+            FocusNote(focusNote, onPick = { pickNote = true }, onCheck = { i -> focusNote?.let { onCheck(it, i) } })
         }
     }
 
     if (showSettings) {
         ModalBottomSheet(onDismissRequest = { showSettings = false }) {
-            TimerSettingsContent(settings, onSettingsChange, alarm, onAlarmChange)
+            TimerSettingsContent(settings, onSettingsChange, alarm, onAlarmChange, canControlDnd, onExport, onImport)
+        }
+    }
+    if (pickNote) NoteDialog(notes, focusNote?.id, { pickNote = false }, onAttachNote)
+}
+
+/** The checklist for this focus: tick items right on the timer screen. Empty: a chip to pick one. */
+@Composable
+private fun FocusNote(note: Note?, onPick: () -> Unit, onCheck: (Int) -> Unit) {
+    val view = LocalView.current
+    if (note == null) {
+        AssistChip(
+            onClick = { HapticUtil.performUIHaptic(view); onPick() },
+            label = { Text(stringResource(R.string.focus_note_attach)) },
+            leadingIcon = { Icon(Icons.Rounded.Checklist, contentDescription = null) },
+        )
+        return
+    }
+    val colors = rememberMarkdownColors()
+    val body = remember(note.body, colors) { highlightMarkdown(note.body, colors, rendered = true, onCheck = onCheck) }
+    Surface(
+        Modifier.widthIn(max = 480.dp).fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.focus_note),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                TooltipIconButton(Icons.Rounded.SwapHoriz, stringResource(R.string.focus_note_change), onClick = onPick)
+            }
+            Text(body, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(end = 12.dp))
         }
     }
 }
@@ -203,8 +281,21 @@ fun TimerSettingsContent(
     onChange: (TimerSettings) -> Unit,
     alarm: AlarmSettings,
     onAlarmChange: (AlarmSettings) -> Unit,
+    canControlDnd: () -> Boolean = { true },
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
+    // DND needs a system grant: send the user there, and switch on once they come back with it.
+    var waitingForDnd by rememberSaveable { mutableStateOf(false) }
+    LifecycleResumeEffect(waitingForDnd, settings) {
+        if (waitingForDnd && canControlDnd()) {
+            waitingForDnd = false
+            onChange(settings.copy(dnd = true))
+        }
+        onPauseOrDispose {}
+    }
     Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
         Text(
             stringResource(R.string.timer_settings),
@@ -227,10 +318,41 @@ fun TimerSettingsContent(
                 onChange(settings.copy(autoStart = it))
             },
         )
+        val dndBlocked = settings.dnd && !canControlDnd()
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.dnd_focus)) },
+            supportingContent = { Text(stringResource(if (dndBlocked) R.string.dnd_focus_needs_access else R.string.dnd_focus_summary)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            trailingContent = { Switch(checked = settings.dnd, onCheckedChange = null) },
+            modifier = Modifier.toggleable(settings.dnd, role = Role.Switch) { on ->
+                HapticUtil.performLightHaptic(view)
+                if (on && !canControlDnd()) {
+                    waitingForDnd = true
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                } else {
+                    onChange(settings.copy(dnd = on))
+                }
+            },
+        )
         SectionHeader(stringResource(R.string.channel_alarms))
         Stepper(stringResource(R.string.snooze_length), alarm.snoozeMin, stringResource(R.string.minutes_value, alarm.snoozeMin), 1..60) { onAlarmChange(alarm.copy(snoozeMin = it)) }
         Stepper(stringResource(R.string.ring_length), alarm.ringMin, stringResource(R.string.minutes_value, alarm.ringMin), 1..30) { onAlarmChange(alarm.copy(ringMin = it)) }
+        SectionHeader(stringResource(R.string.backup))
+        ActionRow(Icons.Rounded.Upload, stringResource(R.string.backup_export), stringResource(R.string.backup_export_summary)) { onExport() }
+        ActionRow(Icons.Rounded.Download, stringResource(R.string.backup_import), stringResource(R.string.backup_import_summary)) { onImport() }
     }
+}
+
+@Composable
+private fun ActionRow(icon: ImageVector, label: String, summary: String, onClick: () -> Unit) {
+    val view = LocalView.current
+    ListItem(
+        headlineContent = { Text(label) },
+        supportingContent = { Text(summary) },
+        leadingContent = { Icon(icon, contentDescription = null) },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.clickable { HapticUtil.performUIHaptic(view); onClick() },
+    )
 }
 
 @Composable

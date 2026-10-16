@@ -49,6 +49,10 @@ data class TimerSettings(
     val sessions: Int = 4,
     /** Start the next phase on its own after a short full-screen countdown, instead of waiting on "Continue". */
     val autoStart: Boolean = false,
+    /** Turn on Do Not Disturb (priority only, alarms still ring) while a focus phase runs. */
+    val dnd: Boolean = false,
+    /** Checklist note shown under the timer, ticked off while focusing. */
+    val noteId: Long? = null,
 ) {
     fun lengthMs(p: Phase) = 60_000L * when (p) {
         Phase.FOCUS -> focusMin
@@ -164,8 +168,11 @@ class PomodoroTimer @Inject constructor(
             it[FOCUS_MIN] = new.focusMin; it[SHORT_MIN] = new.shortMin
             it[LONG_MIN] = new.longMin; it[SESSIONS] = new.sessions
             it[AUTO_START] = new.autoStart
+            it[DND] = new.dnd
+            if (new.noteId != null) it[FOCUS_NOTE] = new.noteId else it.remove(FOCUS_NOTE)
         }
         notify(s, new)
+        applyDnd(s, new)
     }
 
     private suspend fun save(s: TimerState, set: TimerSettings) {
@@ -176,7 +183,37 @@ class PomodoroTimer @Inject constructor(
             if (s.remainingMs != null) it[REMAINING] = s.remainingMs else it.remove(REMAINING)
         }
         notify(s, set)
+        applyDnd(s, set)
     }
+
+    /**
+     * Do Not Disturb follows the focus phase: on while focus runs, off as soon as it stops, pauses or
+     * ends (so the phase-end alarm and breaks are never muted). Only takes over when DND is off, and
+     * only hands back what it changed itself: a DND mode the user set is never touched. [DND_OWNED]
+     * survives process death so a restart still restores it.
+     */
+    private suspend fun applyDnd(s: TimerState, set: TimerSettings) {
+        val owned = store.data.first()[DND_OWNED] ?: false
+        val want = set.dnd && s.running && s.phase == Phase.FOCUS
+        if (want == owned) return
+        if (!nm.isNotificationPolicyAccessGranted) {
+            if (owned) store.edit { it.remove(DND_OWNED) }
+            return
+        }
+        if (want) {
+            if (nm.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL) return
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+            store.edit { it[DND_OWNED] = true }
+        } else {
+            // The user may have changed DND themselves meanwhile; then it's theirs.
+            if (nm.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
+                nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+            }
+            store.edit { it.remove(DND_OWNED) }
+        }
+    }
+
+    fun canControlDnd(): Boolean = nm.isNotificationPolicyAccessGranted
 
     fun refresh() = op { s, set -> if (s.running) notify(s, set) }
 
@@ -253,6 +290,8 @@ class PomodoroTimer @Inject constructor(
         longMin = this[LONG_MIN] ?: 15,
         sessions = this[SESSIONS] ?: 4,
         autoStart = this[AUTO_START] ?: false,
+        dnd = this[DND] ?: false,
+        noteId = this[FOCUS_NOTE],
     )
 
     companion object {
@@ -272,5 +311,8 @@ class PomodoroTimer @Inject constructor(
         private val LONG_MIN = intPreferencesKey("long_min")
         private val SESSIONS = intPreferencesKey("sessions")
         private val AUTO_START = booleanPreferencesKey("auto_start")
+        private val DND = booleanPreferencesKey("dnd")
+        private val DND_OWNED = booleanPreferencesKey("dnd_owned")
+        private val FOCUS_NOTE = longPreferencesKey("focus_note")
     }
 }

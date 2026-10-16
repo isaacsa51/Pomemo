@@ -1,6 +1,14 @@
 package com.serranoie.app.pomemo.tiles
 
+import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.ui.platform.LocalContext
+import com.serranoie.app.pomemo.ui.components.TooltipIconButton
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -90,6 +98,18 @@ private fun QuickReminderSheet(composer: Composer, onTextChange: (String) -> Uni
     val view = LocalView.current
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // Dictation through the system recognizer: no microphone permission needed here.
+    val context = LocalContext.current
+    val prompt = stringResource(R.string.tile_reminder_subtitle)
+    val speech = remember(prompt) {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+    }
+    val canDictate = remember(speech) { speech.resolveActivity(context.packageManager) != null }
+    val dictate = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(onTextChange)
+    }
     val canSave = draft.time != null
     val save = { if (canSave) { HapticUtil.performConfirmHaptic(view); onSave() } }
 
@@ -117,6 +137,9 @@ private fun QuickReminderSheet(composer: Composer, onTextChange: (String) -> Uni
                 onValueChange = onTextChange,
                 placeholder = { Text(stringResource(R.string.composer_placeholder)) },
                 supportingText = { Text(summary) },
+                trailingIcon = if (canDictate) ({
+                    TooltipIconButton(Icons.Rounded.Mic, stringResource(R.string.dictate)) { dictate.launch(speech) }
+                }) else null,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { save() }),

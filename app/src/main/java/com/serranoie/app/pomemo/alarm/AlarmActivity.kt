@@ -13,6 +13,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.flowOf
@@ -60,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
@@ -133,7 +137,7 @@ class AlarmActivity : ComponentActivity() {
                                 attached?.let { n -> lifecycleScope.launch { notes.upsert(n.copy(body = toggleCheckbox(n.body, bracket))) } }
                             },
                             primary = AlarmAction(stringResource(R.string.dismiss), Icons.Rounded.AlarmOff, HapticUtil::performConfirmHaptic) { ringer.stop(r.id) },
-                            secondary = AlarmAction(stringResource(R.string.snooze), Icons.Rounded.Snooze, HapticUtil::performUIHaptic) { ringer.snooze(r.id) },
+                            onSnooze = { minutes -> ringer.snooze(r.id, minutes) },
                         )
                     }
                 }
@@ -150,7 +154,15 @@ data class AlarmAction(val label: String, val icon: ImageVector, val haptic: (Vi
  * the bottom so they stay in thumb reach and never truncate at big font scales.
  */
 @Composable
-fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction, attached: Note? = null, onCheck: (Int) -> Unit = {}) {
+fun AlarmScreen(
+    reminder: Reminder,
+    primary: AlarmAction,
+    secondary: AlarmAction? = null,
+    attached: Note? = null,
+    onCheck: (Int) -> Unit = {},
+    /** Reminders: snooze for 5, 10 or 15 minutes, picked right here. */
+    onSnooze: ((Int) -> Unit)? = null,
+) {
     val pane = stringResource(R.string.alarm_pane)
     Surface(
         Modifier.fillMaxSize().semantics { paneTitle = pane },
@@ -196,7 +208,7 @@ fun AlarmScreen(reminder: Reminder, primary: AlarmAction, secondary: AlarmAction
                     }
                 }
             }
-            AlarmButtons(primary, secondary)
+            AlarmButtons(primary, secondary, onSnooze)
         }
     }
 }
@@ -257,9 +269,11 @@ fun PhaseCountdownScreen(title: String, next: String, startAt: Long, onFinished:
 
 private fun secondsUntil(at: Long) = ((at - System.currentTimeMillis() + 999) / 1000).toInt().coerceAtLeast(0)
 
+private val SNOOZE_CHOICES = listOf(5, 10, 15)
+
 /** Full-width, Large-size buttons at the bottom so they stay in thumb reach and never truncate at big font scales. */
 @Composable
-private fun AlarmButtons(primary: AlarmAction, secondary: AlarmAction) {
+private fun AlarmButtons(primary: AlarmAction, secondary: AlarmAction?, onSnooze: ((Int) -> Unit)? = null) {
     val view = LocalView.current
     val height = ButtonDefaults.LargeContainerHeight
     Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -269,12 +283,31 @@ private fun AlarmButtons(primary: AlarmAction, secondary: AlarmAction) {
             modifier = Modifier.fillMaxWidth().heightIn(min = height),
             contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
         ) { ButtonContent(primary.icon, primary.label) }
-        FilledTonalButton(
+        if (secondary != null) FilledTonalButton(
             onClick = { secondary.haptic(view); secondary.onClick() },
             shapes = ButtonDefaults.shapes(),
             modifier = Modifier.fillMaxWidth().heightIn(min = height),
             contentPadding = ButtonDefaults.contentPaddingFor(height, hasStartIcon = true),
         ) { ButtonContent(secondary.icon, secondary.label) }
+        if (onSnooze != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics { heading() }) {
+                Icon(Icons.Rounded.Snooze, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.snooze), style = MaterialTheme.typography.labelLarge)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SNOOZE_CHOICES.forEach { minutes ->
+                    val label = stringResource(R.string.minutes_value, minutes)
+                    val description = pluralStringResource(R.plurals.snooze_for, minutes, minutes)
+                    FilledTonalButton(
+                        onClick = { HapticUtil.performUIHaptic(view); onSnooze(minutes) },
+                        shapes = ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f).heightIn(min = height).semantics { contentDescription = description },
+                        contentPadding = ButtonDefaults.contentPaddingFor(height),
+                    ) { Text(label, style = ButtonDefaults.textStyleFor(height), maxLines = 1, modifier = Modifier.clearAndSetSemantics {}) }
+                }
+            }
+        }
     }
 }
 
@@ -292,8 +325,8 @@ private fun AlarmScreenPreview() = PomemoTheme {
     AlarmScreen(
         Reminder(title = "Stretch", note = "Neck, shoulders, wrists", time = LocalTime.NOON),
         AlarmAction("Dismiss", Icons.Rounded.AlarmOff, {}) {},
-        AlarmAction("Snooze", Icons.Rounded.Snooze, {}) {},
         attached = Note(1, "### Before bed\n- [x] pills\n- [ ] alarm for 7:00", 0),
+        onSnooze = {},
     )
 }
 

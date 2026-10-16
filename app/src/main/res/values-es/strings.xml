@@ -133,4 +133,23 @@
     <string name="tile_reminder_subtitle">¿Para qué y cuándo?</string>
     <string name="reminder_saved_toast">%1$s - %2$s %3$s</string>
     <string name="tile_focus_running">%1$s · %2$d min</string>
+    <string name="focus_note">Lista para el enfoque</string>
+    <string name="focus_note_attach">Agregar lista para el enfoque</string>
+    <string name="focus_note_change">Cambiar lista</string>
+    <string name="dnd_focus">No molestar durante el enfoque</string>
+    <string name="dnd_focus_summary">Silencia las notificaciones mientras te concentras; las alarmas siguen sonando</string>
+    <string name="dnd_focus_needs_access">Necesita acceso a No molestar: toca para permitirlo</string>
+    <string name="backup">Respaldo</string>
+    <string name="backup_export">Exportar notas y recordatorios</string>
+    <string name="backup_export_summary">Guarda todo en un archivo que tú eliges</string>
+    <string name="backup_import">Importar desde un archivo</string>
+    <string name="backup_import_summary">Agrega lo que falte; no se borra nada</string>
+    <string name="backup_exported">Respaldo guardado (notas: %1$d, recordatorios: %2$d)</string>
+    <string name="backup_imported">Importado (notas: %1$d, recordatorios: %2$d)</string>
+    <string name="backup_failed">Ese archivo no es un respaldo de Pomemo</string>
+    <plurals name="snooze_for">
+        <item quantity="one">Posponer %1$d minuto</item>
+        <item quantity="other">Posponer %1$d minutos</item>
+    </plurals>
+    <string name="dictate">Dictar</string>
 </resources>

@@ -133,4 +133,23 @@
     <string name="tile_reminder_subtitle">What for and when?</string>
     <string name="reminder_saved_toast">%1$s - %2$s %3$s</string>
     <string name="tile_focus_running">%1$s · %2$d min</string>
+    <string name="focus_note">Focus checklist</string>
+    <string name="focus_note_attach">Add a focus checklist</string>
+    <string name="focus_note_change">Change checklist</string>
+    <string name="dnd_focus">Do Not Disturb while focusing</string>
+    <string name="dnd_focus_summary">Silences notifications during focus; alarms still ring</string>
+    <string name="dnd_focus_needs_access">Needs Do Not Disturb access: tap to allow</string>
+    <string name="backup">Backup</string>
+    <string name="backup_export">Export notes and reminders</string>
+    <string name="backup_export_summary">Save everything to a file you choose</string>
+    <string name="backup_import">Import from a file</string>
+    <string name="backup_import_summary">Adds what’s missing; nothing is deleted</string>
+    <string name="backup_exported">Backup saved (notes: %1$d, reminders: %2$d)</string>
+    <string name="backup_imported">Imported (notes: %1$d, reminders: %2$d)</string>
+    <string name="backup_failed">That file isn’t a Pomemo backup</string>
+    <plurals name="snooze_for">
+        <item quantity="one">Snooze for %1$d minute</item>
+        <item quantity="other">Snooze for %1$d minutes</item>
+    </plurals>
+    <string name="dictate">Dictate</string>
 </resources>

@@ -25,6 +25,9 @@ interface NoteDao {
     @Query("SELECT * FROM Note WHERE id = :id")
     suspend fun get(id: Long): Note?
 
+    @Query("SELECT * FROM Note")
+    suspend fun getAll(): List<Note>
+
     @Query("SELECT * FROM Note WHERE id = :id")
     fun observe(id: Long): Flow<Note?>
 

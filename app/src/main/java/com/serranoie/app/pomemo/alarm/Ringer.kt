@@ -104,9 +104,10 @@ class Ringer @Inject constructor(
         if (_ringing.value?.id == id) _ringing.value = queue.removeFirstOrNull()
     }
 
-    fun snooze(id: Long): Job {
+    /** [minutes] from the alarm screen's 5 / 10 / 15; the notification's Snooze uses the length from settings. */
+    fun snooze(id: Long, minutes: Int? = null): Job {
         stop(id)
-        return scope.launch { scheduler.snooze(id, loadSettings().snoozeMin) }
+        return scope.launch { scheduler.snooze(id, minutes ?: loadSettings().snoozeMin) }
     }
 
     /** Rang for the whole ring length unanswered: stop it and leave a quiet "Missed" notification. */

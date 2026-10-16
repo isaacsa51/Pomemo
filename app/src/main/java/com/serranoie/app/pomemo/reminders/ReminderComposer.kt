@@ -314,9 +314,9 @@ private fun connectedShapes(index: Int, count: Int) = when (index) {
     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
 }
 
-/** Pick one note (radio list); "Remove note" detaches the current one. */
+/** Pick one note (radio list); "Remove note" detaches the current one. Shared with the timer's focus note. */
 @Composable
-private fun NoteDialog(notes: List<Note>, selected: Long?, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
+fun NoteDialog(notes: List<Note>, selected: Long?, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
     val view = LocalView.current
     AlertDialog(
         onDismissRequest = onDismiss,
